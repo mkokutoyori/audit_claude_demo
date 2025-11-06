@@ -1125,7 +1125,7 @@ class AppState {
         this.previousViewBeforeEmail = this.currentView;
 
         // Display in dedicated email view
-        document.getElementById('email-content').textContent = emailContent;
+        document.getElementById('email-content').innerHTML = emailContent;
         this.navigateTo('email');
     }
 

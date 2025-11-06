@@ -1394,14 +1394,161 @@ body {
     border-radius: var(--radius);
     padding: 2rem;
     margin: 1.5rem 0;
-    font-family: 'Courier New', monospace;
-    font-size: 0.9rem;
+    font-family: Arial, sans-serif;
+    font-size: 0.95rem;
     line-height: 1.6;
-    white-space: pre-wrap;
-    word-wrap: break-word;
     overflow-x: auto;
 }
 
+.email-body {
+    max-width: 100%;
+}
+
+.email-body p {
+    margin-bottom: 1rem;
+    color: #333;
+}
+
+/* Exception Table Styles */
+.exceptions-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.5rem 0;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.exceptions-table thead {
+    background: var(--primary-color);
+    color: white;
+}
+
+.exceptions-table th {
+    padding: 1rem;
+    text-align: left;
+    font-weight: 600;
+    border: 1px solid #ddd;
+}
+
+.exceptions-table td {
+    padding: 1.25rem;
+    border: 1px solid #ddd;
+    vertical-align: top;
+}
+
+.exceptions-table tbody tr:nth-child(even) {
+    background-color: #f9fafb;
+}
+
+.exceptions-table tbody tr:hover {
+    background-color: #f3f4f6;
+}
+
+/* Exception Details Cell */
+.exception-details {
+    line-height: 1.6;
+}
+
+.exception-title {
+    font-size: 1.1rem;
+    font-weight: bold;
+    color: #1f2937;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid #e5e7eb;
+}
+
+.exception-field {
+    margin-bottom: 0.875rem;
+}
+
+.exception-field strong {
+    color: #4b5563;
+    display: inline-block;
+    min-width: 120px;
+}
+
+/* Risk Badges in Email */
+.risk-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+}
+
+.risk-exposure {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.risk-concern {
+    background-color: #fed7aa;
+    color: #9a3412;
+}
+
+.risk-housekeeping {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.risk-observation {
+    background-color: #dbeafe;
+    color: #1e3a8a;
+}
+
+.overaged-badge {
+    display: inline-block;
+    background-color: #fef2f2;
+    color: #dc2626;
+    padding: 0.25rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 0.5rem;
+    border: 1px solid #fecaca;
+}
+
+/* Status Update Cell */
+.status-update-cell {
+    background-color: #fffbeb;
+    min-width: 250px;
+}
+
+.status-update-area {
+    min-height: 150px;
+    padding: 1rem;
+    background: white;
+    border: 2px dashed #d1d5db;
+    border-radius: 4px;
+    color: #6b7280;
+    font-style: italic;
+}
+
+/* Instructions Section */
+.instructions {
+    background-color: #f0f9ff;
+    padding: 1.5rem;
+    border-left: 4px solid var(--primary-color);
+    margin: 1.5rem 0;
+    border-radius: 4px;
+}
+
+.instructions p {
+    margin-bottom: 0.5rem;
+    color: #1e40af;
+}
+
+.instructions ul {
+    margin: 0.5rem 0 0 1.5rem;
+    color: #1e3a8a;
+}
+
+.instructions li {
+    margin-bottom: 0.25rem;
+}
+
+/* View Actions */
 .view-actions {
     display: flex;
     gap: 1rem;
@@ -1412,10 +1559,24 @@ body {
     border-radius: 0 0 var(--radius) var(--radius);
 }
 
+/* Responsive Email Styles */
 @media (max-width: 768px) {
     .email-view-content {
         padding: 1rem;
-        font-size: 0.75rem;
+        font-size: 0.85rem;
+    }
+
+    .exceptions-table {
+        font-size: 0.85rem;
+    }
+
+    .exceptions-table th,
+    .exceptions-table td {
+        padding: 0.75rem;
+    }
+
+    .exception-title {
+        font-size: 1rem;
     }
 
     .view-actions {
@@ -1424,5 +1585,44 @@ body {
 
     .view-actions .btn {
         width: 100%;
+    }
+
+    .status-update-cell {
+        min-width: 200px;
+    }
+}
+
+@media (max-width: 480px) {
+    .exceptions-table th,
+    .exceptions-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .exceptions-table thead {
+        display: none;
+    }
+
+    .exceptions-table td {
+        border: none;
+        border-bottom: 2px solid #ddd;
+        position: relative;
+        padding-left: 0;
+    }
+
+    .exceptions-table tbody tr {
+        margin-bottom: 1.5rem;
+        display: block;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        padding: 1rem;
+    }
+
+    .status-update-cell::before {
+        content: "Status Update:";
+        font-weight: bold;
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #4b5563;
     }
 }
