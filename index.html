@@ -19,27 +19,27 @@
             <nav class="sidebar-nav">
                 <a href="#" class="nav-item active" data-view="dashboard">
                     <span class="nav-icon">📊</span>
-                    <span>Dashboard</span>
+                    <span data-i18n="nav.dashboard">Dashboard</span>
                 </a>
                 <a href="#" class="nav-item" data-view="exceptions">
                     <span class="nav-icon">⚠️</span>
-                    <span>Exceptions</span>
+                    <span data-i18n="nav.exceptions">Exceptions</span>
                 </a>
                 <a href="#" class="nav-item" data-view="reports">
                     <span class="nav-icon">📋</span>
-                    <span>Audit Reports</span>
+                    <span data-i18n="nav.reports">Audit Reports</span>
                 </a>
                 <a href="#" class="nav-item" data-view="entities">
                     <span class="nav-icon">🏢</span>
-                    <span>Entities</span>
+                    <span data-i18n="nav.entities">Entities</span>
                 </a>
                 <a href="#" class="nav-item" data-view="fiscalyears">
                     <span class="nav-icon">📅</span>
-                    <span>Fiscal Years</span>
+                    <span data-i18n="nav.fiscalYears">Fiscal Years</span>
                 </a>
                 <a href="#" class="nav-item" data-view="views">
                     <span class="nav-icon">👁️</span>
-                    <span>Reports & Views</span>
+                    <span data-i18n="nav.views">Reports & Views</span>
                 </a>
             </nav>
             <div class="sidebar-footer">
@@ -76,8 +76,8 @@
             <!-- Dashboard View -->
             <section id="dashboard-view" class="view-section active">
                 <div class="view-header">
-                    <h2>Dashboard</h2>
-                    <p class="subtitle">Key metrics and insights</p>
+                    <h2 data-i18n="dashboard.title">Dashboard</h2>
+                    <p class="subtitle" data-i18n="dashboard.subtitle">Key metrics and insights</p>
                 </div>
 
                 <div class="metrics-grid">
@@ -85,28 +85,28 @@
                         <div class="metric-icon">⚠️</div>
                         <div class="metric-content">
                             <div class="metric-value" id="metric-open">0</div>
-                            <div class="metric-label">Open Exceptions</div>
+                            <div class="metric-label" data-i18n="dashboard.metrics.openExceptions">Open Exceptions</div>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-icon">📈</div>
                         <div class="metric-content">
                             <div class="metric-value" id="metric-raised">0</div>
-                            <div class="metric-label">Total Raised</div>
+                            <div class="metric-label" data-i18n="dashboard.metrics.totalRaised">Total Raised</div>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-icon">✅</div>
                         <div class="metric-content">
                             <div class="metric-value" id="metric-closed">0</div>
-                            <div class="metric-label">Closed Exceptions</div>
+                            <div class="metric-label" data-i18n="dashboard.metrics.closedExceptions">Closed Exceptions</div>
                         </div>
                     </div>
                     <div class="metric-card">
                         <div class="metric-icon">📊</div>
                         <div class="metric-content">
                             <div class="metric-value" id="metric-closure-rate">0%</div>
-                            <div class="metric-label">Closure Rate</div>
+                            <div class="metric-label" data-i18n="dashboard.metrics.closureRate">Closure Rate</div>
                         </div>
                     </div>
                 </div>
@@ -134,8 +134,8 @@
             <!-- Exceptions View -->
             <section id="exceptions-view" class="view-section">
                 <div class="view-header">
-                    <h2>Exception Management</h2>
-                    <button class="btn btn-primary" id="add-exception-btn">+ Add Exception</button>
+                    <h2 data-i18n="exceptions.title">Exception Management</h2>
+                    <button class="btn btn-primary" id="add-exception-btn"><span data-i18n="exceptions.addException">+ Add Exception</span></button>
                 </div>
 
                 <div class="filters-bar">
@@ -179,8 +179,11 @@
             <!-- Audit Reports View -->
             <section id="reports-view" class="view-section">
                 <div class="view-header">
-                    <h2>Audit Reports</h2>
-                    <button class="btn btn-primary" id="add-report-btn">+ Add Report</button>
+                    <h2 data-i18n="reports.title">Audit Reports</h2>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" id="import-report-btn">📤 <span data-i18n="reports.importJson">Import JSON</span></button>
+                        <button class="btn btn-primary" id="add-report-btn">+ <span data-i18n="reports.addReport">Add Report</span></button>
+                    </div>
                 </div>
 
                 <div class="filters-bar">
@@ -197,13 +200,13 @@
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>Report Name</th>
-                                <th>Entity</th>
-                                <th>Fiscal Year</th>
-                                <th>Quarter</th>
-                                <th>Date</th>
+                                <th data-i18n="reports.table.name">Report Name</th>
+                                <th data-i18n="reports.table.entity">Entity</th>
+                                <th data-i18n="reports.table.fiscalYear">Fiscal Year</th>
+                                <th data-i18n="reports.table.quarter">Quarter</th>
+                                <th data-i18n="reports.table.date">Date</th>
                                 <th>Dept. Rating</th>
-                                <th>Actions</th>
+                                <th data-i18n="common.actions">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="reports-table-body">
@@ -215,8 +218,8 @@
             <!-- Entities View -->
             <section id="entities-view" class="view-section">
                 <div class="view-header">
-                    <h2>Entities / Departments</h2>
-                    <button class="btn btn-primary" id="add-entity-btn">+ Add Entity</button>
+                    <h2 data-i18n="entities.title">Entities / Departments</h2>
+                    <button class="btn btn-primary" id="add-entity-btn">+ <span data-i18n="entities.addEntity">Add Entity</span></button>
                 </div>
 
                 <div class="filters-bar">
@@ -241,8 +244,8 @@
             <!-- Fiscal Years View -->
             <section id="fiscalyears-view" class="view-section">
                 <div class="view-header">
-                    <h2>Fiscal Years</h2>
-                    <button class="btn btn-primary" id="add-fiscalyear-btn">+ Add Fiscal Year</button>
+                    <h2 data-i18n="fiscalYears.title">Fiscal Years</h2>
+                    <button class="btn btn-primary" id="add-fiscalyear-btn">+ <span data-i18n="fiscalYears.addFiscalYear">Add Fiscal Year</span></button>
                 </div>
 
                 <div class="fiscal-years-container" id="fiscal-years-container">
@@ -252,8 +255,8 @@
             <!-- Reports & Views -->
             <section id="views-view" class="view-section">
                 <div class="view-header">
-                    <h2>Reports & Views</h2>
-                    <p class="subtitle">Specialized views and reports</p>
+                    <h2 data-i18n="views.title">Reports & Views</h2>
+                    <p class="subtitle" data-i18n="views.subtitle">Specialized views and reports</p>
                 </div>
 
                 <div class="reports-grid">

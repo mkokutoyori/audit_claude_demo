@@ -173,6 +173,7 @@ class AppState {
         await this.loadSampleData();
         this.setupEventListeners();
         this.updateLanguageSelector();
+        this.updateAllI18nTexts();
         this.renderDashboard();
     }
 
@@ -180,8 +181,20 @@ class AppState {
     changeLanguage(lang) {
         i18n.setLanguage(lang);
         this.updateLanguageSelector();
+        this.updateAllI18nTexts();
         this.renderCurrentView();
         NotificationUtil.show(i18n.t('messages.updateSuccess'), 'success');
+    }
+
+    // Update all i18n texts in the DOM
+    updateAllI18nTexts() {
+        document.querySelectorAll('[data-i18n]').forEach(element => {
+            const key = element.getAttribute('data-i18n');
+            const translation = i18n.t(key);
+            if (translation && translation !== key) {
+                element.textContent = translation;
+            }
+        });
     }
 
     // Update language selector
@@ -271,6 +284,7 @@ class AppState {
         // Add buttons
         document.getElementById('add-exception-btn').addEventListener('click', () => this.showExceptionForm());
         document.getElementById('add-report-btn').addEventListener('click', () => this.showReportForm());
+        document.getElementById('import-report-btn').addEventListener('click', () => this.showImportReportForm());
         document.getElementById('add-entity-btn').addEventListener('click', () => this.showEntityForm());
         document.getElementById('add-fiscalyear-btn').addEventListener('click', () => this.showFiscalYearForm());
 
@@ -846,6 +860,7 @@ class AppState {
                     <td><span class="status-badge dept-rating-${report.department_rating || 'na'}">${ratingLabels[report.department_rating] || 'N/A'}</span></td>
                     <td>
                         <div class="action-btns">
+                            <button class="btn btn-sm btn-info" onclick="app.generateReportEmail(${report.id})">📧 Email</button>
                             <button class="btn btn-sm btn-secondary" onclick="app.editReport(${report.id})">Edit</button>
                             <button class="btn btn-sm btn-danger" onclick="app.deleteReport(${report.id})">Delete</button>
                         </div>
@@ -893,8 +908,8 @@ class AppState {
                     </select>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Report Date *</label>
-                    <input type="date" class="form-input" id="report-date" value="${report?.date || ''}" required>
+                    <label class="form-label">Report Date</label>
+                    <input type="date" class="form-input" id="report-date" value="${report?.date || new Date().toISOString().split('T')[0]}">
                 </div>
                 <div class="form-group">
                     <label class="form-label">Department Rating *</label>
@@ -972,6 +987,160 @@ class AppState {
             await this.db.delete('reports', id);
             this.renderReports();
         }
+    }
+
+    async generateReportEmail(reportId) {
+        const report = await this.db.getById('reports', reportId);
+        const entity = await this.db.getById('entities', report.entityId);
+        const exceptions = await this.db.getByIndex('exceptions', 'reportId', reportId);
+        const openExceptions = exceptions.filter(e => e.status === 'open');
+
+        if (openExceptions.length === 0) {
+            NotificationUtil.show('No open exceptions found for this report', 'info');
+            return;
+        }
+
+        const emailContent = EmailGenerator.generateReportEmail(report, entity, openExceptions, i18n.getLanguage());
+
+        const body = `
+            <div class="email-draft-container">
+                <h3>${i18n.t('exceptions.emailDraft.title')}</h3>
+                <div class="email-preview">${emailContent}</div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Close</button>
+                    <button type="button" class="btn btn-info" onclick="app.copyEmailToClipboard()">📋 Copy to Clipboard</button>
+                    <button type="button" class="btn btn-primary" onclick="app.downloadEmail()">💾 Download as .txt</button>
+                </div>
+            </div>
+        `;
+
+        this.showModal('Email Draft', body);
+        this.currentEmailContent = emailContent;
+    }
+
+    copyEmailToClipboard() {
+        if (this.currentEmailContent) {
+            EmailGenerator.copyToClipboard(this.currentEmailContent).then(success => {
+                if (success) {
+                    NotificationUtil.show('Email copied to clipboard!', 'success');
+                } else {
+                    NotificationUtil.show('Failed to copy to clipboard', 'error');
+                }
+            });
+        }
+    }
+
+    downloadEmail() {
+        if (this.currentEmailContent) {
+            const filename = `audit_follow_up_${new Date().toISOString().split('T')[0]}.txt`;
+            EmailGenerator.downloadEmail(this.currentEmailContent, filename);
+            NotificationUtil.show('Email downloaded!', 'success');
+        }
+    }
+
+    async showImportReportForm() {
+        const entities = await this.db.getAll('entities');
+        const fiscalYears = await this.db.getAll('fiscalYears');
+
+        const body = `
+            <form id="import-report-form">
+                <div class="alert alert-info">
+                    <strong>Note:</strong> Paste your audit report JSON below. The system will parse it and create the report with all exceptions.
+                </div>
+                <div class="form-group">
+                    <label class="form-label">JSON Data *</label>
+                    <textarea class="json-editor" id="import-json" placeholder="Paste JSON here..." required></textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Entity *</label>
+                    <select class="form-select" id="import-entity" required>
+                        <option value="">Select Entity</option>
+                        ${entities.map(e => `<option value="${e.id}">${e.name}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Fiscal Year *</label>
+                    <select class="form-select" id="import-fiscalyear" required>
+                        <option value="">Select Fiscal Year</option>
+                        ${fiscalYears.map(fy => `<option value="${fy.id}">${fy.year}</option>`).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Quarter *</label>
+                    <select class="form-select" id="import-quarter" required>
+                        <option value="">Select Quarter</option>
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Import</button>
+                </div>
+            </form>
+        `;
+
+        this.showModal('Import Audit Report from JSON', body);
+
+        // Handle fiscal year change to populate quarters
+        document.getElementById('import-fiscalyear').addEventListener('change', async (e) => {
+            const fyId = parseInt(e.target.value);
+            const quarters = await this.db.getByIndex('quarters', 'fiscalYearId', fyId);
+            const quarterSelect = document.getElementById('import-quarter');
+
+            quarterSelect.innerHTML = '<option value="">Select Quarter</option>' +
+                quarters.map(q => `
+                    <option value="${q.id}">
+                        ${q.name} (${q.startDate} to ${q.endDate})
+                    </option>
+                `).join('');
+        });
+
+        document.getElementById('import-report-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            try {
+                const jsonData = JSON.parse(document.getElementById('import-json').value);
+                const entityId = parseInt(document.getElementById('import-entity').value);
+                const quarterId = parseInt(document.getElementById('import-quarter').value);
+
+                // Create the report
+                const reportData = {
+                    name: jsonData.report?.name || 'Imported Report',
+                    entityId: entityId,
+                    quarterId: quarterId,
+                    date: jsonData.report?.date || new Date().toISOString().split('T')[0],
+                    department_rating: jsonData.report?.department_rating || 'acceptable'
+                };
+
+                const reportId = await this.db.add('reports', reportData);
+
+                // Create exceptions
+                if (jsonData.exceptions && Array.isArray(jsonData.exceptions)) {
+                    for (const exc of jsonData.exceptions) {
+                        await this.db.add('exceptions', {
+                            reportId: reportId,
+                            title: exc.title || 'Untitled Exception',
+                            description: exc.description || '',
+                            risk: exc.risk || '',
+                            risk_rating: exc.risk_rating || 'observation',
+                            recommendations: exc.recommendations || '',
+                            response: exc.response || '',
+                            action_plan: exc.action_plan || '',
+                            root_cause: exc.root_cause || '',
+                            target_date: exc.target_date || '',
+                            status: exc.status || 'open',
+                            created_date: new Date().toISOString().split('T')[0]
+                        });
+                    }
+                }
+
+                this.closeModal();
+                this.renderReports();
+                NotificationUtil.show('Report imported successfully!', 'success');
+            } catch (error) {
+                console.error('Import error:', error);
+                NotificationUtil.show('Failed to import report. Please check the JSON format.', 'error');
+            }
+        });
     }
 
     async updateReportFilters() {
