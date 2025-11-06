@@ -296,6 +296,12 @@
                         <p>View closure rates by risk rating for fiscal year</p>
                         <button class="btn btn-secondary view-report-btn">View Report</button>
                     </div>
+                    <div class="report-card" id="view-overaged-exceptions">
+                        <div class="report-icon">🔴</div>
+                        <h3 data-i18n="overaged.cardTitle">Overaged Exceptions Report</h3>
+                        <p data-i18n="overaged.cardDescription">View all exceptions past their target date</p>
+                        <button class="btn btn-secondary view-report-btn" data-i18n="overaged.viewButton">View Report</button>
+                    </div>
                 </div>
 
             </section>
@@ -329,6 +335,15 @@
                     <button class="btn btn-info" onclick="app.copyEmailToClipboard()">📋 Copy to Clipboard</button>
                     <button class="btn btn-primary" onclick="app.downloadEmail()">💾 Download as .txt</button>
                 </div>
+            </section>
+
+            <!-- Overaged Exceptions Report View -->
+            <section id="overaged-report-view" class="view-section">
+                <div class="view-header">
+                    <button class="btn btn-secondary" onclick="app.navigateTo('views')">← Back to Reports & Views</button>
+                    <h2 data-i18n="overaged.title">Overaged Exceptions Report</h2>
+                </div>
+                <div id="overaged-report-content"></div>
             </section>
         </main>
     </div>

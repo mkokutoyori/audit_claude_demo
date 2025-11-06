@@ -1654,7 +1654,117 @@ class AppState {
     // Report Views
     // ==========================================
 
+    async showOveragedExceptionsReport() {
+        const exceptions = await this.db.getAll('exceptions');
+        const reports = await this.db.getAll('reports');
+        const entities = await this.db.getAll('entities');
+
+        // Filter overaged exceptions
+        const overagedExceptions = exceptions.filter(exc => DateUtils.isOveraged(exc.target_date));
+
+        // Build data for the report with manager info
+        const reportData = [];
+        for (const exception of overagedExceptions) {
+            const report = await this.db.getById('reports', exception.reportId);
+            if (report) {
+                const entity = await this.db.getById('entities', report.entityId);
+                reportData.push({
+                    exception,
+                    manager: entity?.manager || 'N/A'
+                });
+            }
+        }
+
+        // Generate HTML for the report
+        let html = `
+            <div class="overaged-report-container">
+                <div class="report-summary">
+                    <div class="summary-card">
+                        <div class="summary-icon">🔴</div>
+                        <div class="summary-content">
+                            <h3>${reportData.length}</h3>
+                            <p data-i18n="overaged.totalCount">Total Overaged Exceptions</p>
+                        </div>
+                    </div>
+                </div>
+        `;
+
+        if (reportData.length === 0) {
+            html += `
+                <div class="empty-state">
+                    <div class="empty-icon">✅</div>
+                    <h3 data-i18n="overaged.noExceptions">No Overaged Exceptions</h3>
+                    <p data-i18n="overaged.allOnTrack">All exceptions are on track or closed</p>
+                </div>
+            `;
+        } else {
+            html += `
+                <table class="overaged-table">
+                    <thead>
+                        <tr>
+                            <th data-i18n="overaged.descriptionColumn">Description of Breaches</th>
+                            <th data-i18n="overaged.actionPlanColumn">Corrective Action Plans</th>
+                            <th data-i18n="overaged.managerColumn">Responsible Manager</th>
+                            <th data-i18n="overaged.targetDateColumn">Target Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td class="numbered-list">
+                                <ol>
+                                    ${reportData.map((item, index) =>
+                                        `<li value="${index + 1}">${item.exception.title}</li>`
+                                    ).join('')}
+                                </ol>
+                            </td>
+                            <td class="numbered-list">
+                                <ol>
+                                    ${reportData.map((item, index) =>
+                                        `<li value="${index + 1}">${item.exception.action_plan || '<em>No action plan specified</em>'}</li>`
+                                    ).join('')}
+                                </ol>
+                            </td>
+                            <td class="numbered-list">
+                                <ol>
+                                    ${reportData.map((item, index) =>
+                                        `<li value="${index + 1}">${item.manager}</li>`
+                                    ).join('')}
+                                </ol>
+                            </td>
+                            <td class="numbered-list">
+                                <ol>
+                                    ${reportData.map((item, index) => {
+                                        const daysOverdue = DateUtils.getDaysOverdue(item.exception.target_date);
+                                        return `<li value="${index + 1}">
+                                            ${i18n.formatDate(item.exception.target_date)}
+                                            <span class="overdue-badge">${daysOverdue} days overdue</span>
+                                        </li>`;
+                                    }).join('')}
+                                </ol>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="report-footer">
+                    <p><strong data-i18n="overaged.footer">Total Overaged Exceptions:</strong> ${reportData.length}</p>
+                </div>
+            `;
+        }
+
+        html += `</div>`;
+
+        document.getElementById('overaged-report-content').innerHTML = html;
+        this.navigateTo('overaged-report');
+    }
+
     async showReportView(viewId) {
+        // Special handling for overaged exceptions report
+        if (viewId === 'view-overaged-exceptions') {
+            await this.showOveragedExceptionsReport();
+            return;
+        }
+
         const container = document.getElementById('statistics-detail-content');
         const titleElement = document.getElementById('statistics-detail-title');
 

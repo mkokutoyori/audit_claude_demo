@@ -330,6 +330,22 @@ const translations = {
             signature: 'Best regards,\nAudit Team',
             overaged: '⚠️ OVERAGED',
             dueDate: 'Due Date'
+        },
+
+        // Overaged Exceptions Report
+        overaged: {
+            title: 'Overaged Exceptions Report',
+            cardTitle: 'Overaged Exceptions Report',
+            cardDescription: 'View all exceptions past their target date',
+            viewButton: 'View Report',
+            totalCount: 'Total Overaged Exceptions',
+            noExceptions: 'No Overaged Exceptions',
+            allOnTrack: 'All exceptions are on track or closed',
+            descriptionColumn: 'Description of Breaches',
+            actionPlanColumn: 'Corrective Action Plans',
+            managerColumn: 'Responsible Manager',
+            targetDateColumn: 'Target Date',
+            footer: 'Total Overaged Exceptions:'
         }
     },
 
@@ -660,6 +676,22 @@ const translations = {
             signature: 'Cordialement,\nÉquipe d\'Audit',
             overaged: '⚠️ EN RETARD',
             dueDate: 'Date d\'Échéance'
+        },
+
+        // Rapport des Exceptions en Retard
+        overaged: {
+            title: 'Rapport des Exceptions en Retard',
+            cardTitle: 'Rapport des Exceptions en Retard',
+            cardDescription: 'Voir toutes les exceptions dépassant leur date cible',
+            viewButton: 'Voir le Rapport',
+            totalCount: 'Total des Exceptions en Retard',
+            noExceptions: 'Aucune Exception en Retard',
+            allOnTrack: 'Toutes les exceptions sont à jour ou fermées',
+            descriptionColumn: 'Description des Infractions',
+            actionPlanColumn: 'Plans d\'Action Correctifs',
+            managerColumn: 'Gestionnaire Responsable',
+            targetDateColumn: 'Date Cible',
+            footer: 'Total des Exceptions en Retard :'
         }
     }
 };
