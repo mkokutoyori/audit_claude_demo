@@ -5,7 +5,7 @@
 class Database {
     constructor() {
         this.dbName = 'AuditExceptionDB';
-        this.version = 1;
+        this.version = 3;
         this.db = null;
     }
 
@@ -13,14 +13,20 @@ class Database {
         return new Promise((resolve, reject) => {
             const request = indexedDB.open(this.dbName, this.version);
 
-            request.onerror = () => reject(request.error);
+            request.onerror = () => {
+                console.error('Database error:', request.error);
+                reject(request.error);
+            };
+
             request.onsuccess = () => {
                 this.db = request.result;
+                console.log('Database opened successfully');
                 resolve(this.db);
             };
 
             request.onupgradeneeded = (event) => {
                 const db = event.target.result;
+                console.log('Upgrading database from version', event.oldVersion, 'to', event.newVersion);
 
                 // Entities Store
                 if (!db.objectStoreNames.contains('entities')) {
@@ -117,6 +123,32 @@ class Database {
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
         });
+    }
+
+    async resetDatabase() {
+        if (this.db) {
+            this.db.close();
+        }
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.deleteDatabase(this.dbName);
+            request.onsuccess = () => {
+                console.log('Database deleted successfully');
+                resolve();
+            };
+            request.onerror = () => {
+                console.error('Error deleting database:', request.error);
+                reject(request.error);
+            };
+        });
+    }
+}
+
+// Global function to reset the database if needed
+async function resetAppDatabase() {
+    if (confirm('This will delete all data and reset the application. Are you sure?')) {
+        const db = new Database();
+        await db.resetDatabase();
+        location.reload();
     }
 }
 
@@ -1452,6 +1484,35 @@ class AppState {
 let app;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    app = new AppState();
-    await app.init();
+    try {
+        app = new AppState();
+        await app.init();
+    } catch (error) {
+        console.error('Application initialization error:', error);
+
+        // Handle version error specifically
+        if (error.name === 'VersionError') {
+            const message = `
+                Database version conflict detected. This usually happens when the database
+                structure has changed. Would you like to reset the database?
+
+                Warning: This will delete all existing data.
+            `;
+
+            if (confirm(message)) {
+                try {
+                    await resetAppDatabase();
+                } catch (resetError) {
+                    console.error('Error resetting database:', resetError);
+                    alert('Failed to reset database. Please clear your browser data manually:\n\n' +
+                          '1. Open Developer Tools (F12)\n' +
+                          '2. Go to Application tab\n' +
+                          '3. Clear Storage\n' +
+                          '4. Reload the page');
+                }
+            }
+        } else {
+            alert('Failed to initialize application. Please check the console for details.');
+        }
+    }
 });

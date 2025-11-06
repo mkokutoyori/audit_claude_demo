@@ -60,6 +60,19 @@ Each exception includes:
 2. Open `index.html` in a modern web browser (Chrome, Firefox, Edge, Safari)
 3. No server or installation required - runs entirely in your browser!
 
+### Troubleshooting
+
+If you encounter a **VersionError** or the application fails to load:
+
+1. **Option 1 - Use the Reset Button**: Click the "🔄 Reset Database" button in the sidebar (bottom left)
+2. **Option 2 - Manual Browser Clear**:
+   - Open Developer Tools (F12)
+   - Go to Application/Storage tab
+   - Click "Clear Storage" or "Clear site data"
+   - Reload the page
+
+**Note**: Resetting will delete all existing data. This is normal when updating the application structure.
+
 ### First Steps
 
 1. **Add Entities**: Navigate to "Entities" and create your organizational units
@@ -128,6 +141,16 @@ Each exception includes:
 - **Database**: IndexedDB for client-side persistence
 - **Charts**: Chart.js library for data visualization
 - **Design**: Responsive CSS with modern UI patterns
+
+### Database Version Management
+
+The application uses IndexedDB with versioning (currently version 3). If you modify the database schema:
+
+1. **Increment the version** in `app.js`: Change `this.version = 3;` to a higher number
+2. **Test locally**: Clear browser data before testing
+3. **User updates**: Users will be prompted to reset their database when version changes
+
+The application includes automatic error handling and a reset function for smooth updates.
 
 ### Data Model
 
