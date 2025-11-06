@@ -143,15 +143,6 @@ class Database {
     }
 }
 
-// Global function to reset the database if needed
-async function resetAppDatabase() {
-    if (confirm('This will delete all data and reset the application. Are you sure?')) {
-        const db = new Database();
-        await db.resetDatabase();
-        location.reload();
-    }
-}
-
 // ==========================================
 // Application State Manager
 // ==========================================
@@ -1699,6 +1690,13 @@ class AppState {
             `;
         } else {
             html += `
+                <div class="copy-buttons-row">
+                    <button class="btn btn-info btn-sm" onclick="app.copyOveragedColumn('description')">📋 Copy Column 1</button>
+                    <button class="btn btn-info btn-sm" onclick="app.copyOveragedColumn('actionPlan')">📋 Copy Column 2</button>
+                    <button class="btn btn-info btn-sm" onclick="app.copyOveragedColumn('manager')">📋 Copy Column 3</button>
+                    <button class="btn btn-info btn-sm" onclick="app.copyOveragedColumn('targetDate')">📋 Copy Column 4</button>
+                </div>
+
                 <table class="overaged-table">
                     <thead>
                         <tr>
@@ -1750,8 +1748,43 @@ class AppState {
 
         html += `</div>`;
 
+        // Store data for copying
+        this.currentOveragedData = reportData;
+
         document.getElementById('overaged-report-content').innerHTML = html;
         this.navigateTo('overaged-report');
+    }
+
+    copyOveragedColumn(columnType) {
+        if (!this.currentOveragedData) {
+            NotificationUtil.show('No data to copy', 'error');
+            return;
+        }
+
+        let text = '';
+        this.currentOveragedData.forEach((item, index) => {
+            const num = index + 1;
+            switch(columnType) {
+                case 'description':
+                    text += `${num}. ${item.exception.title}\n`;
+                    break;
+                case 'actionPlan':
+                    text += `${num}. ${item.exception.action_plan || 'No action plan specified'}\n`;
+                    break;
+                case 'manager':
+                    text += `${num}. ${item.manager}\n`;
+                    break;
+                case 'targetDate':
+                    text += `${num}. ${i18n.formatDate(item.exception.target_date)}\n`;
+                    break;
+            }
+        });
+
+        navigator.clipboard.writeText(text).then(() => {
+            NotificationUtil.show('Column copied to clipboard!', 'success');
+        }).catch(() => {
+            NotificationUtil.show('Failed to copy', 'error');
+        });
     }
 
     async showReportView(viewId) {
@@ -2595,25 +2628,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // Handle version error specifically
         if (error.name === 'VersionError') {
-            const message = `
-                Database version conflict detected. This usually happens when the database
-                structure has changed. Would you like to reset the database?
-
-                Warning: This will delete all existing data.
-            `;
-
-            if (confirm(message)) {
-                try {
-                    await resetAppDatabase();
-                } catch (resetError) {
-                    console.error('Error resetting database:', resetError);
-                    alert('Failed to reset database. Please clear your browser data manually:\n\n' +
-                          '1. Open Developer Tools (F12)\n' +
-                          '2. Go to Application tab\n' +
-                          '3. Clear Storage\n' +
-                          '4. Reload the page');
-                }
-            }
+            alert('Database version conflict detected. Please clear your browser data manually:\n\n' +
+                  '1. Open Developer Tools (F12)\n' +
+                  '2. Go to Application tab\n' +
+                  '3. Click "Clear site data" or clear IndexedDB storage\n' +
+                  '4. Reload the page\n\n' +
+                  'This will reset the application database.');
         } else {
             alert('Failed to initialize application. Please check the console for details.');
         }

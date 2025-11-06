@@ -145,12 +145,35 @@ class DateUtils {
 }
 
 class EmailGenerator {
+    // Helper function to wrap text to fit column width
+    static wrapText(text, maxWidth) {
+        const words = text.split(' ');
+        const lines = [];
+        let currentLine = '';
+
+        words.forEach(word => {
+            if ((currentLine + word).length <= maxWidth) {
+                currentLine += (currentLine ? ' ' : '') + word;
+            } else {
+                if (currentLine) lines.push(currentLine);
+                currentLine = word;
+            }
+        });
+        if (currentLine) lines.push(currentLine);
+
+        return lines;
+    }
+
     // Generate email for open exceptions in a report
     static generateReportEmail(report, entity, exceptions, lang = 'en') {
         const managerName = entity.manager || 'Manager';
         const reportName = report.name;
         const reportDate = i18n.formatDate(report.date);
         const deadline = DateUtils.getFollowUpDeadline(7);
+
+        const col1Width = 68;
+        const col2Width = 43;
+        const totalWidth = col1Width + col2Width + 5; // +5 for borders and spacing
 
         let email = '';
 
@@ -164,36 +187,56 @@ class EmailGenerator {
         email += `I hope this email finds you well.\n\n`;
         email += `This is a follow-up regarding the open audit exceptions from the "${reportName}" audit report dated ${reportDate}. `;
         email += `We would appreciate receiving an update on the current status and progress of these items.\n\n`;
-
-        // Exceptions header
         email += `Below is a summary of the pending exceptions that require your attention:\n\n`;
-        email += `${'='.repeat(100)}\n\n`;
 
-        // List each exception
+        // Table header
+        email += `+${'-'.repeat(col1Width)}+${'-'.repeat(col2Width)}+\n`;
+        email += `| ${'Exception Title & Description'.padEnd(col1Width - 2)} | ${'Status Update (To be completed)'.padEnd(col2Width - 2)} |\n`;
+        email += `+${'-'.repeat(col1Width)}+${'-'.repeat(col2Width)}+\n`;
+
+        // Table rows
         exceptions.forEach((exception, index) => {
             const isOveraged = DateUtils.isOveraged(exception.target_date);
             const daysOverdue = DateUtils.getDaysOverdue(exception.target_date);
             const overagedTag = isOveraged ? ` (⚠️ OVERAGED by ${daysOverdue} days)` : '';
 
-            email += `${index + 1}. ${exception.title}\n`;
-            email += `${'-'.repeat(100)}\n\n`;
-            email += `   Risk Level: ${exception.risk_rating.toUpperCase()}${overagedTag}\n`;
-            email += `   Target Date: ${i18n.formatDate(exception.target_date)}\n\n`;
-            email += `   Description:\n`;
-            email += `   ${exception.description}\n\n`;
-            email += `   Recommendation:\n`;
-            email += `   ${exception.recommendations}\n\n`;
-            email += `   STATUS UPDATE (Please complete):\n`;
-            email += `   _________________________________________________________________________\n`;
-            email += `   \n`;
-            email += `   \n`;
-            email += `   \n`;
-            email += `   _________________________________________________________________________\n\n`;
-            email += `${'='.repeat(100)}\n\n`;
+            // Build exception details
+            let details = [];
+            details.push(`${index + 1}. ${exception.title}`);
+            details.push('');
+            details.push(`Risk Level: ${exception.risk_rating.toUpperCase()}${overagedTag}`);
+            details.push(`Target Date: ${i18n.formatDate(exception.target_date)}`);
+            details.push('');
+            details.push('Description:');
+            this.wrapText(exception.description, col1Width - 2).forEach(line => details.push(line));
+            details.push('');
+            details.push('Recommendation:');
+            this.wrapText(exception.recommendations, col1Width - 2).forEach(line => details.push(line));
+
+            // Status update placeholder
+            const statusLines = [
+                '[Please provide status update here]',
+                '',
+                '',
+                '',
+                ''
+            ];
+
+            // Determine max lines
+            const maxLines = Math.max(details.length, statusLines.length);
+
+            // Write rows
+            for (let i = 0; i < maxLines; i++) {
+                const col1Text = (details[i] || '').substring(0, col1Width - 2).padEnd(col1Width - 2);
+                const col2Text = (statusLines[i] || '').substring(0, col2Width - 2).padEnd(col2Width - 2);
+                email += `| ${col1Text} | ${col2Text} |\n`;
+            }
+
+            email += `+${'-'.repeat(col1Width)}+${'-'.repeat(col2Width)}+\n`;
         });
 
         // Instructions
-        email += `Please provide the following for each exception in the STATUS UPDATE section:\n`;
+        email += `\nPlease complete the "Status Update" column for each exception with:\n`;
         email += `  • Current status of the remediation\n`;
         email += `  • Actions taken to date\n`;
         email += `  • Expected completion date (if still pending)\n`;
