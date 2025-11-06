@@ -2,6 +2,24 @@
 
 A comprehensive web application for managing and monitoring audit exceptions across organizational entities. Built with HTML, CSS, JavaScript, and IndexedDB for complete client-side data persistence.
 
+## 🚀 Live Demo
+
+**Deploy on GitHub Pages**: See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed instructions.
+
+Once deployed, your app will be available at:
+```
+https://mkokutoyori.github.io/audit_claude_demo/
+```
+
+## 📦 Quick Deploy
+
+This application is ready for instant deployment on GitHub Pages:
+1. Push to GitHub
+2. Enable GitHub Pages in repository settings (branch: `gh-pages`)
+3. Access your live application!
+
+No server setup, no build process, no dependencies to install!
+
 ## Features
 
 ### Core Functionality
