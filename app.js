@@ -375,6 +375,11 @@ class AppState {
         }
     }
 
+    // Navigate to a specific view (alias for switchView)
+    navigateTo(view) {
+        this.switchView(view);
+    }
+
     // ==========================================
     // Dashboard Methods
     // ==========================================

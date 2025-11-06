@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Application</title>
+    <script>
+        // Test that all required functions exist
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                console.log('Testing application...');
+
+                // Check if app object exists
+                if (typeof app !== 'undefined') {
+                    console.log('✓ App object exists');
+
+                    // Check if navigateTo method exists
+                    if (typeof app.navigateTo === 'function') {
+                        console.log('✓ navigateTo method exists');
+                    } else {
+                        console.error('✗ navigateTo method missing');
+                    }
+
+                    // Check if exportDatabase method exists
+                    if (typeof app.exportDatabase === 'function') {
+                        console.log('✓ exportDatabase method exists');
+                    } else {
+                        console.error('✗ exportDatabase method missing');
+                    }
+
+                    // Check if importDatabase method exists
+                    if (typeof app.importDatabase === 'function') {
+                        console.log('✓ importDatabase method exists');
+                    } else {
+                        console.error('✗ importDatabase method missing');
+                    }
+
+                    // Check if changeLanguage method exists
+                    if (typeof app.changeLanguage === 'function') {
+                        console.log('✓ changeLanguage method exists');
+                    } else {
+                        console.error('✗ changeLanguage method missing');
+                    }
+
+                    // Check if viewReportDetail method exists
+                    if (typeof app.viewReportDetail === 'function') {
+                        console.log('✓ viewReportDetail method exists');
+                    } else {
+                        console.error('✗ viewReportDetail method missing');
+                    }
+
+                    console.log('All tests passed!');
+                } else {
+                    console.error('✗ App object does not exist');
+                }
+
+                // Check global functions
+                if (typeof resetAppDatabase === 'function') {
+                    console.log('✓ resetAppDatabase function exists');
+                } else {
+                    console.error('✗ resetAppDatabase function missing');
+                }
+
+                if (typeof toggleMobileMenu === 'function') {
+                    console.log('✓ toggleMobileMenu function exists');
+                } else {
+                    console.error('✗ toggleMobileMenu function missing');
+                }
+            }, 1000);
+        });
+    </script>
+</head>
+<body>
+    <h1>Testing Application Functions</h1>
+    <p>Check the browser console for test results.</p>
+    <iframe src="index.html" style="width: 100%; height: 600px; border: 1px solid #ccc;"></iframe>
+</body>
+</html>
