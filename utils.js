@@ -155,59 +155,72 @@ class EmailGenerator {
         let email = '';
 
         // Subject
-        const subject = i18n.t('email.subject', { reportName });
-        email += `${i18n.t('email.subject')}:${subject}\n\n`;
+        email += `Subject: Follow-up on Open Audit Exceptions - ${reportName}\n\n`;
 
         // Greeting
-        email += `${i18n.t('email.greeting', { managerName })}\n\n`;
+        email += `Dear ${managerName},\n\n`;
 
         // Introduction
-        email += `${i18n.t('email.intro', { reportName, reportDate })}\n\n`;
+        email += `I hope this email finds you well.\n\n`;
 
-        // Purpose
-        email += `${i18n.t('email.purpose')}\n\n`;
+        email += `This is a follow-up regarding the open audit exceptions from the "${reportName}" audit report dated ${reportDate}. `;
+        email += `We would appreciate receiving an update on the current status and progress of these items.\n\n`;
 
-        // Exceptions list
-        email += `${i18n.t('email.exceptionsTitle')}\n`;
-        email += '='.repeat(60) + '\n\n';
+        // Exception table header
+        email += `Below is a summary of the pending exceptions that require your attention:\n\n`;
 
-        exceptions.forEach((exception, index) => {
+        email += `${'='.repeat(100)}\n`;
+        email += `| ${'Exception Title & Description'.padEnd(55)} | ${'Status Update (To be completed)'.padEnd(40)} |\n`;
+        email += `${'='.repeat(100)}\n`;
+
+        exceptions.forEach((exception) => {
             const isOveraged = DateUtils.isOveraged(exception.target_date);
             const daysOverdue = DateUtils.getDaysOverdue(exception.target_date);
 
-            email += `${index + 1}. ${exception.title}\n`;
+            // Exception title and details
+            let exceptionInfo = `${exception.title}\n`;
+            exceptionInfo += `  Risk Level: ${exception.risk_rating.toUpperCase()}\n`;
+            exceptionInfo += `  Target Date: ${i18n.formatDate(exception.target_date)}`;
 
             if (isOveraged) {
-                email += `   ${i18n.t('email.overaged')} - ${daysOverdue} days overdue\n`;
+                exceptionInfo += ` (⚠️ OVERAGED by ${daysOverdue} days)`;
             }
 
-            email += `   ${i18n.t('email.exceptionTemplate.riskRating', { riskRating: exception.risk_rating.toUpperCase() })}\n`;
-            email += `   ${i18n.t('email.dueDate')}: ${i18n.formatDate(exception.target_date)}\n\n`;
+            exceptionInfo += `\n  Description: ${exception.description}\n`;
+            exceptionInfo += `  Recommendation: ${exception.recommendations}`;
 
-            email += `   ${i18n.t('exceptions.form.description')}:\n`;
-            email += `   ${exception.description}\n\n`;
+            // Format for table cell (wrap text if needed)
+            const lines = exceptionInfo.split('\n');
+            const statusCell = '[Please provide status update here]';
 
-            email += `   ${i18n.t('exceptions.form.recommendations')}:\n`;
-            email += `   ${exception.recommendations}\n\n`;
+            // First line
+            email += `| ${lines[0].substring(0, 55).padEnd(55)} | ${statusCell.padEnd(40)} |\n`;
 
-            if (exception.action_plan) {
-                email += `   ${i18n.t('exceptions.form.actionPlan')}:\n`;
-                email += `   ${exception.action_plan}\n\n`;
+            // Subsequent lines
+            for (let i = 1; i < lines.length; i++) {
+                email += `| ${lines[i].substring(0, 55).padEnd(55)} | ${' '.padEnd(40)} |\n`;
             }
 
-            email += `   ${i18n.t('email.exceptionTemplate.requestUpdate')}\n`;
-            i18n.t('email.requestPoints').forEach(point => {
-                email += `   - ${point}\n`;
-            });
-
-            email += '\n' + '-'.repeat(60) + '\n\n';
+            email += `${'-'.repeat(100)}\n`;
         });
 
+        email += `${'='.repeat(100)}\n\n`;
+
+        // Instructions
+        email += `Please complete the "Status Update" column for each exception with:\n`;
+        email += `  • Current status of the remediation\n`;
+        email += `  • Actions taken to date\n`;
+        email += `  • Expected completion date (if still pending)\n`;
+        email += `  • Any challenges or support needed\n\n`;
+
         // Closing
-        email += `${i18n.t('email.closing', { deadline })}\n\n`;
+        email += `We would appreciate receiving your response by ${deadline}.\n\n`;
+
+        email += `Should you have any questions or require clarification on any of the exceptions, please do not hesitate to contact us.\n\n`;
 
         // Signature
-        email += `${i18n.t('email.signature')}\n`;
+        email += `Best regards,\n`;
+        email += `Internal Audit Team\n`;
 
         return email;
     }

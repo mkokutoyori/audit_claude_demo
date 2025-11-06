@@ -1042,10 +1042,36 @@ class AppState {
         const entities = await this.db.getAll('entities');
         const fiscalYears = await this.db.getAll('fiscalYears');
 
+        const jsonExample = {
+            "report": {
+                "name": "Q1 2024 IT Audit",
+                "date": "2024-03-31",
+                "department_rating": "acceptable"
+            },
+            "exceptions": [
+                {
+                    "title": "Password Policy Not Enforced",
+                    "description": "Password complexity requirements are not enforced system-wide",
+                    "risk": "Weak passwords increase risk of unauthorized access",
+                    "risk_rating": "concern",
+                    "recommendations": "Implement and enforce password policy across all systems",
+                    "response": "Management agrees and will implement by Q2",
+                    "action_plan": "Update AD policies and deploy to all systems",
+                    "root_cause": "Policy was not configured during initial setup",
+                    "target_date": "2024-06-30",
+                    "status": "open"
+                }
+            ]
+        };
+
         const body = `
             <form id="import-report-form">
                 <div class="alert alert-info">
-                    <strong>Note:</strong> Paste your audit report JSON below. The system will parse it and create the report with all exceptions.
+                    <strong>JSON Structure:</strong> Your JSON should follow this format:
+                    <details style="margin-top: 0.5rem;">
+                        <summary style="cursor: pointer; font-weight: 600;">Click to see example</summary>
+                        <pre style="background: #f8fafc; padding: 1rem; border-radius: 4px; overflow-x: auto; font-size: 0.75rem; margin-top: 0.5rem;">${JSON.stringify(jsonExample, null, 2)}</pre>
+                    </details>
                 </div>
                 <div class="form-group">
                     <label class="form-label">JSON Data *</label>
@@ -1520,6 +1546,12 @@ class AppState {
             case 'view-department-rating-timeline':
                 await this.renderDepartmentRatingTimeline(container);
                 break;
+            case 'view-quarterly-statistics':
+                await this.renderQuarterlyStatistics(container);
+                break;
+            case 'view-fiscal-year-closure':
+                await this.renderFiscalYearClosure(container);
+                break;
         }
     }
 
@@ -1762,6 +1794,285 @@ class AppState {
         }
 
         container.innerHTML = html;
+    }
+
+    async renderQuarterlyStatistics(container) {
+        const fiscalYears = await this.db.getAll('fiscalYears');
+
+        if (fiscalYears.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><p>No fiscal years found</p></div>';
+            return;
+        }
+
+        let html = '<h2 class="mb-3">Quarterly Statistics by Unit</h2>';
+
+        // Quarter selector
+        html += `
+            <div class="form-group" style="max-width: 400px; margin-bottom: 2rem;">
+                <label class="form-label">Select Fiscal Year</label>
+                <select class="form-select" id="stats-fiscalyear" onchange="app.loadQuarterlyStatsForYear()">
+                    <option value="">Select Fiscal Year</option>
+                    ${fiscalYears.map(fy => `<option value="${fy.id}">${fy.year}</option>`).join('')}
+                </select>
+            </div>
+            <div class="form-group" style="max-width: 400px; margin-bottom: 2rem;">
+                <label class="form-label">Select Quarter</label>
+                <select class="form-select" id="stats-quarter">
+                    <option value="">Select Quarter</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="app.generateQuarterlyStats()" style="margin-bottom: 2rem;">Generate Report</button>
+            <div id="quarterly-stats-result"></div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    async loadQuarterlyStatsForYear() {
+        const fyId = parseInt(document.getElementById('stats-fiscalyear').value);
+        if (!fyId) return;
+
+        const quarters = await this.db.getByIndex('quarters', 'fiscalYearId', fyId);
+        const quarterSelect = document.getElementById('stats-quarter');
+
+        quarterSelect.innerHTML = '<option value="">Select Quarter</option>' +
+            quarters.map(q => `<option value="${q.id}">${q.name} (${q.startDate} to ${q.endDate})</option>`).join('');
+    }
+
+    async generateQuarterlyStats() {
+        const quarterId = parseInt(document.getElementById('stats-quarter').value);
+        if (!quarterId) {
+            NotificationUtil.show('Please select a quarter', 'error');
+            return;
+        }
+
+        const reports = await this.db.getByIndex('reports', 'quarterId', quarterId);
+        const entities = await this.db.getAll('entities');
+        const exceptions = await this.db.getAll('exceptions');
+
+        // Build statistics by entity
+        const stats = [];
+        let totalExposure = 0, totalConcern = 0, totalHousekeeping = 0, totalObservation = 0, totalAll = 0;
+
+        for (const entity of entities) {
+            const entityReports = reports.filter(r => r.entityId === entity.id);
+            if (entityReports.length === 0) continue;
+
+            let exposure = 0, concern = 0, housekeeping = 0, observation = 0;
+            let unitRating = 'N/A';
+
+            for (const report of entityReports) {
+                const reportExceptions = exceptions.filter(e => e.reportId === report.id);
+                exposure += reportExceptions.filter(e => e.risk_rating === 'exposure').length;
+                concern += reportExceptions.filter(e => e.risk_rating === 'concern').length;
+                housekeeping += reportExceptions.filter(e => e.risk_rating === 'housekeeping').length;
+                observation += reportExceptions.filter(e => e.risk_rating === 'observation').length;
+
+                // Get the most recent rating
+                if (report.department_rating && unitRating === 'N/A') {
+                    unitRating = report.department_rating;
+                }
+            }
+
+            const total = exposure + concern + housekeeping + observation;
+            if (total > 0) {
+                stats.push({
+                    unit: entity.name,
+                    exposure,
+                    concern,
+                    housekeeping,
+                    observation,
+                    total,
+                    rating: unitRating
+                });
+
+                totalExposure += exposure;
+                totalConcern += concern;
+                totalHousekeeping += housekeeping;
+                totalObservation += observation;
+                totalAll += total;
+            }
+        }
+
+        const ratingLabels = {
+            'satisfactory': 'Satisfactory',
+            'acceptable': 'Acceptable',
+            'needs_improvement': 'Needs Improvement',
+            'not_satisfactory': 'Not Satisfactory',
+            'N/A': 'N/A'
+        };
+
+        // Generate HTML table
+        let html = `
+            <div class="report-section">
+                <h3>Exceptions by Unit and Risk Rating</h3>
+                <div class="table-container">
+                    <table class="data-table" style="font-size: 0.875rem;">
+                        <thead>
+                            <tr>
+                                <th>S/N</th>
+                                <th>Unit</th>
+                                <th colspan="4" style="text-align: center;">Count per Risk Ratings</th>
+                                <th>Total</th>
+                                <th>Unit's Rating</th>
+                            </tr>
+                            <tr>
+                                <th></th>
+                                <th></th>
+                                <th>Exposure</th>
+                                <th>Concern</th>
+                                <th>Housekeeping</th>
+                                <th>Observation</th>
+                                <th></th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${stats.map((stat, index) => `
+                                <tr>
+                                    <td>${index + 1}</td>
+                                    <td><strong>${stat.unit}</strong></td>
+                                    <td style="text-align: center;">${stat.exposure}</td>
+                                    <td style="text-align: center;">${stat.concern}</td>
+                                    <td style="text-align: center;">${stat.housekeeping}</td>
+                                    <td style="text-align: center;">${stat.observation}</td>
+                                    <td style="text-align: center;"><strong>${stat.total}</strong></td>
+                                    <td><span class="status-badge dept-rating-${stat.rating}">${ratingLabels[stat.rating]}</span></td>
+                                </tr>
+                            `).join('')}
+                            <tr style="background-color: #f1f5f9; font-weight: 700;">
+                                <td></td>
+                                <td>TOTAL</td>
+                                <td style="text-align: center;">${totalExposure}</td>
+                                <td style="text-align: center;">${totalConcern}</td>
+                                <td style="text-align: center;">${totalHousekeeping}</td>
+                                <td style="text-align: center;">${totalObservation}</td>
+                                <td style="text-align: center;">${totalAll}</td>
+                                <td></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('quarterly-stats-result').innerHTML = html;
+    }
+
+    async renderFiscalYearClosure(container) {
+        const fiscalYears = await this.db.getAll('fiscalYears');
+
+        if (fiscalYears.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><p>No fiscal years found</p></div>';
+            return;
+        }
+
+        let html = '<h2 class="mb-3">Fiscal Year Closure Statistics</h2>';
+
+        // Fiscal Year selector
+        html += `
+            <div class="form-group" style="max-width: 400px; margin-bottom: 2rem;">
+                <label class="form-label">Select Fiscal Year</label>
+                <select class="form-select" id="closure-fiscalyear">
+                    <option value="">Select Fiscal Year</option>
+                    ${fiscalYears.map(fy => `<option value="${fy.id}">${fy.year}</option>`).join('')}
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="app.generateClosureStats()" style="margin-bottom: 2rem;">Generate Report</button>
+            <div id="closure-stats-result"></div>
+        `;
+
+        container.innerHTML = html;
+    }
+
+    async generateClosureStats() {
+        const fyId = parseInt(document.getElementById('closure-fiscalyear').value);
+        if (!fyId) {
+            NotificationUtil.show('Please select a fiscal year', 'error');
+            return;
+        }
+
+        const quarters = await this.db.getByIndex('quarters', 'fiscalYearId', fyId);
+        const quarterIds = quarters.map(q => q.id);
+        const allReports = await this.db.getAll('reports');
+        const reports = allReports.filter(r => quarterIds.includes(r.quarterId));
+        const reportIds = reports.map(r => r.id);
+        const allExceptions = await this.db.getAll('exceptions');
+        const exceptions = allExceptions.filter(e => reportIds.includes(e.reportId));
+
+        // Calculate statistics by risk rating
+        const riskRatings = ['exposure', 'concern', 'housekeeping', 'observation'];
+        const stats = {
+            raised: {},
+            closed: {},
+            achievement: {}
+        };
+
+        let totalRaised = 0, totalClosed = 0;
+
+        riskRatings.forEach(rating => {
+            const raisedCount = exceptions.filter(e => e.risk_rating === rating).length;
+            const closedCount = exceptions.filter(e => e.risk_rating === rating && e.status === 'closed').length;
+            const achievement = raisedCount > 0 ? ((closedCount / raisedCount) * 100).toFixed(1) : '0.0';
+
+            stats.raised[rating] = raisedCount;
+            stats.closed[rating] = closedCount;
+            stats.achievement[rating] = achievement;
+
+            totalRaised += raisedCount;
+            totalClosed += closedCount;
+        });
+
+        const totalAchievement = totalRaised > 0 ? ((totalClosed / totalRaised) * 100).toFixed(1) : '0.0';
+
+        // Generate HTML table
+        let html = `
+            <div class="report-section">
+                <h3>Closure Status by Risk Rating</h3>
+                <div class="table-container">
+                    <table class="data-table" style="font-size: 0.875rem;">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th style="text-align: center;">Exposure</th>
+                                <th style="text-align: center;">Concern</th>
+                                <th style="text-align: center;">Housekeeping</th>
+                                <th style="text-align: center;">Observation</th>
+                                <th style="text-align: center;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Raised</strong></td>
+                                <td style="text-align: center;">${stats.raised.exposure}</td>
+                                <td style="text-align: center;">${stats.raised.concern}</td>
+                                <td style="text-align: center;">${stats.raised.housekeeping}</td>
+                                <td style="text-align: center;">${stats.raised.observation}</td>
+                                <td style="text-align: center;"><strong>${totalRaised}</strong></td>
+                            </tr>
+                            <tr>
+                                <td><strong>Closed</strong></td>
+                                <td style="text-align: center;">${stats.closed.exposure}</td>
+                                <td style="text-align: center;">${stats.closed.concern}</td>
+                                <td style="text-align: center;">${stats.closed.housekeeping}</td>
+                                <td style="text-align: center;">${stats.closed.observation}</td>
+                                <td style="text-align: center;"><strong>${totalClosed}</strong></td>
+                            </tr>
+                            <tr style="background-color: #f1f5f9; font-weight: 700;">
+                                <td><strong>Achievement (%)</strong></td>
+                                <td style="text-align: center;">${stats.achievement.exposure}%</td>
+                                <td style="text-align: center;">${stats.achievement.concern}%</td>
+                                <td style="text-align: center;">${stats.achievement.housekeeping}%</td>
+                                <td style="text-align: center;">${stats.achievement.observation}%</td>
+                                <td style="text-align: center;"><strong>${totalAchievement}%</strong></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('closure-stats-result').innerHTML = html;
     }
 
     // ==========================================
