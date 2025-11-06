@@ -152,89 +152,62 @@ class EmailGenerator {
         const reportDate = i18n.formatDate(report.date);
         const deadline = DateUtils.getFollowUpDeadline(7);
 
-        let html = `
-            <div class="email-body">
-                <p><strong>Subject:</strong> Follow-up on Open Audit Exceptions - ${reportName}</p>
+        let email = '';
 
-                <p>Dear ${managerName},</p>
+        // Subject
+        email += `Subject: Follow-up on Open Audit Exceptions - ${reportName}\n\n`;
 
-                <p>I hope this email finds you well.</p>
+        // Greeting
+        email += `Dear ${managerName},\n\n`;
 
-                <p>This is a follow-up regarding the open audit exceptions from the <strong>"${reportName}"</strong> audit report dated <strong>${reportDate}</strong>. We would appreciate receiving an update on the current status and progress of these items.</p>
+        // Introduction
+        email += `I hope this email finds you well.\n\n`;
+        email += `This is a follow-up regarding the open audit exceptions from the "${reportName}" audit report dated ${reportDate}. `;
+        email += `We would appreciate receiving an update on the current status and progress of these items.\n\n`;
 
-                <p>Below is a summary of the pending exceptions that require your attention:</p>
+        // Exceptions header
+        email += `Below is a summary of the pending exceptions that require your attention:\n\n`;
+        email += `${'='.repeat(100)}\n\n`;
 
-                <table class="exceptions-table">
-                    <thead>
-                        <tr>
-                            <th style="width: 60%;">Exception Title &amp; Description</th>
-                            <th style="width: 40%;">Status Update (To be completed)</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-        `;
-
+        // List each exception
         exceptions.forEach((exception, index) => {
             const isOveraged = DateUtils.isOveraged(exception.target_date);
             const daysOverdue = DateUtils.getDaysOverdue(exception.target_date);
+            const overagedTag = isOveraged ? ` (⚠️ OVERAGED by ${daysOverdue} days)` : '';
 
-            const riskBadgeClass = `risk-${exception.risk_rating.toLowerCase()}`;
-            const overagedWarning = isOveraged ? `<span class="overaged-badge">⚠️ OVERAGED by ${daysOverdue} days</span>` : '';
-
-            html += `
-                <tr>
-                    <td class="exception-details">
-                        <div class="exception-title">${index + 1}. ${exception.title}</div>
-                        <div class="exception-field">
-                            <strong>Risk Level:</strong>
-                            <span class="risk-badge ${riskBadgeClass}">${exception.risk_rating.toUpperCase()}</span>
-                            ${overagedWarning}
-                        </div>
-                        <div class="exception-field">
-                            <strong>Target Date:</strong> ${i18n.formatDate(exception.target_date)}
-                        </div>
-                        <div class="exception-field">
-                            <strong>Description:</strong><br>
-                            ${exception.description}
-                        </div>
-                        <div class="exception-field">
-                            <strong>Recommendation:</strong><br>
-                            ${exception.recommendations}
-                        </div>
-                    </td>
-                    <td class="status-update-cell">
-                        <div class="status-update-area">
-                            <em>[Please provide status update here]</em>
-                        </div>
-                    </td>
-                </tr>
-            `;
+            email += `${index + 1}. ${exception.title}\n`;
+            email += `${'-'.repeat(100)}\n\n`;
+            email += `   Risk Level: ${exception.risk_rating.toUpperCase()}${overagedTag}\n`;
+            email += `   Target Date: ${i18n.formatDate(exception.target_date)}\n\n`;
+            email += `   Description:\n`;
+            email += `   ${exception.description}\n\n`;
+            email += `   Recommendation:\n`;
+            email += `   ${exception.recommendations}\n\n`;
+            email += `   STATUS UPDATE (Please complete):\n`;
+            email += `   _________________________________________________________________________\n`;
+            email += `   \n`;
+            email += `   \n`;
+            email += `   \n`;
+            email += `   _________________________________________________________________________\n\n`;
+            email += `${'='.repeat(100)}\n\n`;
         });
 
-        html += `
-                    </tbody>
-                </table>
+        // Instructions
+        email += `Please provide the following for each exception in the STATUS UPDATE section:\n`;
+        email += `  • Current status of the remediation\n`;
+        email += `  • Actions taken to date\n`;
+        email += `  • Expected completion date (if still pending)\n`;
+        email += `  • Any challenges or support needed\n\n`;
 
-                <div class="instructions">
-                    <p><strong>Please complete the "Status Update" column for each exception with:</strong></p>
-                    <ul>
-                        <li>Current status of the remediation</li>
-                        <li>Actions taken to date</li>
-                        <li>Expected completion date (if still pending)</li>
-                        <li>Any challenges or support needed</li>
-                    </ul>
-                </div>
+        // Closing
+        email += `We would appreciate receiving your response by ${deadline}.\n\n`;
+        email += `Should you have any questions or require clarification on any of the exceptions, please do not hesitate to contact us.\n\n`;
 
-                <p>We would appreciate receiving your response by <strong>${deadline}</strong>.</p>
+        // Signature
+        email += `Best regards,\n`;
+        email += `Internal Audit Team\n`;
 
-                <p>Should you have any questions or require clarification on any of the exceptions, please do not hesitate to contact us.</p>
-
-                <p>Best regards,<br>
-                <strong>Internal Audit Team</strong></p>
-            </div>
-        `;
-
-        return html;
+        return email;
     }
 
     // Download email as text file

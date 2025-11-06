@@ -1394,9 +1394,11 @@ body {
     border-radius: var(--radius);
     padding: 2rem;
     margin: 1.5rem 0;
-    font-family: Arial, sans-serif;
-    font-size: 0.95rem;
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.9rem;
     line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
     overflow-x: auto;
 }
 

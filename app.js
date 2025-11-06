@@ -1125,7 +1125,7 @@ class AppState {
         this.previousViewBeforeEmail = this.currentView;
 
         // Display in dedicated email view
-        document.getElementById('email-content').innerHTML = emailContent;
+        document.getElementById('email-content').textContent = emailContent;
         this.navigateTo('email');
     }
 
@@ -1733,13 +1733,9 @@ class AppState {
                             </td>
                             <td class="numbered-list">
                                 <ol>
-                                    ${reportData.map((item, index) => {
-                                        const daysOverdue = DateUtils.getDaysOverdue(item.exception.target_date);
-                                        return `<li value="${index + 1}">
-                                            ${i18n.formatDate(item.exception.target_date)}
-                                            <span class="overdue-badge">${daysOverdue} days overdue</span>
-                                        </li>`;
-                                    }).join('')}
+                                    ${reportData.map((item, index) =>
+                                        `<li value="${index + 1}">${i18n.formatDate(item.exception.target_date)}</li>`
+                                    ).join('')}
                                 </ol>
                             </td>
                         </tr>
@@ -1800,15 +1796,39 @@ class AppState {
         this.navigateTo('statistics-detail');
     }
 
-    async renderExceptionsByQuarter(container) {
+    async renderExceptionsByQuarter(container, filters = {}) {
         const exceptions = await this.db.getAll('exceptions');
         const reports = await this.db.getAll('reports');
         const quarters = await this.db.getAll('quarters');
         const fiscalYears = await this.db.getAll('fiscalYears');
+        const entities = await this.db.getAll('entities');
+
+        // Apply filters
+        let filteredExceptions = exceptions.filter(exception => {
+            const report = reports.find(r => r.id === exception.reportId);
+            if (!report) return false;
+
+            // Filter by entity
+            if (filters.entity && report.entityId.toString() !== filters.entity) {
+                return false;
+            }
+
+            // Filter by risk rating
+            if (filters.risk && exception.risk_rating !== filters.risk) {
+                return false;
+            }
+
+            // Filter by status
+            if (filters.status && exception.status !== filters.status) {
+                return false;
+            }
+
+            return true;
+        });
 
         const quarterMap = {};
 
-        for (const exception of exceptions) {
+        for (const exception of filteredExceptions) {
             const report = reports.find(r => r.id === exception.reportId);
             if (!report) continue;
 
@@ -1834,6 +1854,28 @@ class AppState {
 
         let html = '<h2 class="mb-3">Exceptions by Quarter</h2>';
 
+        // Add filters
+        html += `
+            <div class="filters-row" style="margin-bottom: 1.5rem;">
+                <select class="form-select" id="quarter-filter-entity" style="max-width: 200px; display: inline-block; margin-right: 1rem;">
+                    <option value="">All Entities</option>
+                    ${entities.map(e => `<option value="${e.id}" ${filters.entity == e.id ? 'selected' : ''}>${e.name}</option>`).join('')}
+                </select>
+                <select class="form-select" id="quarter-filter-risk" style="max-width: 200px; display: inline-block; margin-right: 1rem;">
+                    <option value="">All Risk Ratings</option>
+                    <option value="exposure" ${filters.risk === 'exposure' ? 'selected' : ''}>Exposure</option>
+                    <option value="concern" ${filters.risk === 'concern' ? 'selected' : ''}>Concern</option>
+                    <option value="housekeeping" ${filters.risk === 'housekeeping' ? 'selected' : ''}>Housekeeping</option>
+                    <option value="observation" ${filters.risk === 'observation' ? 'selected' : ''}>Observation</option>
+                </select>
+                <select class="form-select" id="quarter-filter-status" style="max-width: 200px; display: inline-block;">
+                    <option value="">All Statuses</option>
+                    <option value="open" ${filters.status === 'open' ? 'selected' : ''}>Open</option>
+                    <option value="closed" ${filters.status === 'closed' ? 'selected' : ''}>Closed</option>
+                </select>
+            </div>
+        `;
+
         Object.values(quarterMap).forEach(data => {
             html += `
                 <div class="report-section">
@@ -1852,16 +1894,55 @@ class AppState {
         });
 
         container.innerHTML = html;
+
+        // Attach filter event listeners
+        document.getElementById('quarter-filter-entity')?.addEventListener('change', (e) => {
+            this.renderExceptionsByQuarter(container, {...filters, entity: e.target.value});
+        });
+        document.getElementById('quarter-filter-risk')?.addEventListener('change', (e) => {
+            this.renderExceptionsByQuarter(container, {...filters, risk: e.target.value});
+        });
+        document.getElementById('quarter-filter-status')?.addEventListener('change', (e) => {
+            this.renderExceptionsByQuarter(container, {...filters, status: e.target.value});
+        });
     }
 
-    async renderExceptionsByEntity(container) {
+    async renderExceptionsByEntity(container, filters = {}) {
         const exceptions = await this.db.getAll('exceptions');
         const reports = await this.db.getAll('reports');
         const entities = await this.db.getAll('entities');
+        const fiscalYears = await this.db.getAll('fiscalYears');
+        const quarters = await this.db.getAll('quarters');
+
+        // Apply filters
+        let filteredExceptions = exceptions.filter(exception => {
+            const report = reports.find(r => r.id === exception.reportId);
+            if (!report) return false;
+
+            // Filter by fiscal year
+            if (filters.year) {
+                const quarter = quarters.find(q => q.id === report.quarterId);
+                if (!quarter) return false;
+                const fy = fiscalYears.find(f => f.id === quarter.fiscalYearId);
+                if (!fy || fy.year !== filters.year) return false;
+            }
+
+            // Filter by risk rating
+            if (filters.risk && exception.risk_rating !== filters.risk) {
+                return false;
+            }
+
+            // Filter by status
+            if (filters.status && exception.status !== filters.status) {
+                return false;
+            }
+
+            return true;
+        });
 
         const entityMap = {};
 
-        for (const exception of exceptions) {
+        for (const exception of filteredExceptions) {
             const report = reports.find(r => r.id === exception.reportId);
             if (!report) continue;
 
@@ -1884,6 +1965,28 @@ class AppState {
 
         let html = '<h2 class="mb-3">Exceptions by Entity</h2>';
 
+        // Add filters
+        html += `
+            <div class="filters-row" style="margin-bottom: 1.5rem;">
+                <select class="form-select" id="entity-filter-year" style="max-width: 200px; display: inline-block; margin-right: 1rem;">
+                    <option value="">All Fiscal Years</option>
+                    ${fiscalYears.map(fy => `<option value="${fy.year}" ${filters.year === fy.year ? 'selected' : ''}>${fy.year}</option>`).join('')}
+                </select>
+                <select class="form-select" id="entity-filter-risk" style="max-width: 200px; display: inline-block; margin-right: 1rem;">
+                    <option value="">All Risk Ratings</option>
+                    <option value="exposure" ${filters.risk === 'exposure' ? 'selected' : ''}>Exposure</option>
+                    <option value="concern" ${filters.risk === 'concern' ? 'selected' : ''}>Concern</option>
+                    <option value="housekeeping" ${filters.risk === 'housekeeping' ? 'selected' : ''}>Housekeeping</option>
+                    <option value="observation" ${filters.risk === 'observation' ? 'selected' : ''}>Observation</option>
+                </select>
+                <select class="form-select" id="entity-filter-status" style="max-width: 200px; display: inline-block;">
+                    <option value="">All Statuses</option>
+                    <option value="open" ${filters.status === 'open' ? 'selected' : ''}>Open</option>
+                    <option value="closed" ${filters.status === 'closed' ? 'selected' : ''}>Closed</option>
+                </select>
+            </div>
+        `;
+
         Object.values(entityMap).forEach(data => {
             html += `
                 <div class="report-section">
@@ -1903,18 +2006,50 @@ class AppState {
         });
 
         container.innerHTML = html;
+
+        // Attach filter event listeners
+        document.getElementById('entity-filter-year')?.addEventListener('change', (e) => {
+            this.renderExceptionsByEntity(container, {...filters, year: e.target.value});
+        });
+        document.getElementById('entity-filter-risk')?.addEventListener('change', (e) => {
+            this.renderExceptionsByEntity(container, {...filters, risk: e.target.value});
+        });
+        document.getElementById('entity-filter-status')?.addEventListener('change', (e) => {
+            this.renderExceptionsByEntity(container, {...filters, status: e.target.value});
+        });
     }
 
-    async renderOpenExceptionsByQuarter(container) {
+    async renderOpenExceptionsByQuarter(container, filters = {}) {
         const exceptions = await this.db.getAll('exceptions');
-        const openExceptions = exceptions.filter(e => e.status === 'open');
         const reports = await this.db.getAll('reports');
         const quarters = await this.db.getAll('quarters');
         const fiscalYears = await this.db.getAll('fiscalYears');
+        const entities = await this.db.getAll('entities');
+
+        // Apply filters to open exceptions
+        let filteredExceptions = exceptions.filter(exception => {
+            // Must be open
+            if (exception.status !== 'open') return false;
+
+            const report = reports.find(r => r.id === exception.reportId);
+            if (!report) return false;
+
+            // Filter by entity
+            if (filters.entity && report.entityId.toString() !== filters.entity) {
+                return false;
+            }
+
+            // Filter by risk rating
+            if (filters.risk && exception.risk_rating !== filters.risk) {
+                return false;
+            }
+
+            return true;
+        });
 
         const quarterMap = {};
 
-        for (const exception of openExceptions) {
+        for (const exception of filteredExceptions) {
             const report = reports.find(r => r.id === exception.reportId);
             if (!report) continue;
 
@@ -1940,6 +2075,23 @@ class AppState {
 
         let html = '<h2 class="mb-3">Open Exceptions by Quarter</h2>';
 
+        // Add filters
+        html += `
+            <div class="filters-row" style="margin-bottom: 1.5rem;">
+                <select class="form-select" id="open-quarter-filter-entity" style="max-width: 200px; display: inline-block; margin-right: 1rem;">
+                    <option value="">All Entities</option>
+                    ${entities.map(e => `<option value="${e.id}" ${filters.entity == e.id ? 'selected' : ''}>${e.name}</option>`).join('')}
+                </select>
+                <select class="form-select" id="open-quarter-filter-risk" style="max-width: 200px; display: inline-block;">
+                    <option value="">All Risk Ratings</option>
+                    <option value="exposure" ${filters.risk === 'exposure' ? 'selected' : ''}>Exposure</option>
+                    <option value="concern" ${filters.risk === 'concern' ? 'selected' : ''}>Concern</option>
+                    <option value="housekeeping" ${filters.risk === 'housekeeping' ? 'selected' : ''}>Housekeeping</option>
+                    <option value="observation" ${filters.risk === 'observation' ? 'selected' : ''}>Observation</option>
+                </select>
+            </div>
+        `;
+
         if (Object.keys(quarterMap).length === 0) {
             html += '<div class="empty-state"><div class="empty-state-icon">✅</div><p>No open exceptions found!</p></div>';
         } else {
@@ -1962,6 +2114,14 @@ class AppState {
         }
 
         container.innerHTML = html;
+
+        // Attach filter event listeners
+        document.getElementById('open-quarter-filter-entity')?.addEventListener('change', (e) => {
+            this.renderOpenExceptionsByQuarter(container, {...filters, entity: e.target.value});
+        });
+        document.getElementById('open-quarter-filter-risk')?.addEventListener('change', (e) => {
+            this.renderOpenExceptionsByQuarter(container, {...filters, risk: e.target.value});
+        });
     }
 
     async renderDepartmentRatingTimeline(container) {
