@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audit Exception Tracking System</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1>🔍 Audit Tracker</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span>Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-view="exceptions">
+                    <span class="nav-icon">⚠️</span>
+                    <span>Exceptions</span>
+                </a>
+                <a href="#" class="nav-item" data-view="reports">
+                    <span class="nav-icon">📋</span>
+                    <span>Audit Reports</span>
+                </a>
+                <a href="#" class="nav-item" data-view="entities">
+                    <span class="nav-icon">🏢</span>
+                    <span>Entities</span>
+                </a>
+                <a href="#" class="nav-item" data-view="fiscalyears">
+                    <span class="nav-icon">📅</span>
+                    <span>Fiscal Years</span>
+                </a>
+                <a href="#" class="nav-item" data-view="views">
+                    <span class="nav-icon">👁️</span>
+                    <span>Reports & Views</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- Dashboard View -->
+            <section id="dashboard-view" class="view-section active">
+                <div class="view-header">
+                    <h2>Dashboard</h2>
+                    <p class="subtitle">Key metrics and insights</p>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card">
+                        <div class="metric-icon">⚠️</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="metric-open">0</div>
+                            <div class="metric-label">Open Exceptions</div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">📈</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="metric-raised">0</div>
+                            <div class="metric-label">Total Raised</div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">✅</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="metric-closed">0</div>
+                            <div class="metric-label">Closed Exceptions</div>
+                        </div>
+                    </div>
+                    <div class="metric-card">
+                        <div class="metric-icon">📊</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="metric-closure-rate">0%</div>
+                            <div class="metric-label">Closure Rate</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card">
+                        <h3>Exceptions by Status</h3>
+                        <canvas id="statusChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Exceptions by Risk Rating</h3>
+                        <canvas id="riskChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Exceptions by Entity</h3>
+                        <canvas id="entityChart"></canvas>
+                    </div>
+                    <div class="chart-card">
+                        <h3>Monthly Trend</h3>
+                        <canvas id="trendChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Exceptions View -->
+            <section id="exceptions-view" class="view-section">
+                <div class="view-header">
+                    <h2>Exception Management</h2>
+                    <button class="btn btn-primary" id="add-exception-btn">+ Add Exception</button>
+                </div>
+
+                <div class="filters-bar">
+                    <input type="text" id="exception-search" placeholder="Search exceptions..." class="search-input">
+                    <select id="exception-status-filter" class="filter-select">
+                        <option value="">All Status</option>
+                        <option value="open">Open</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                    <select id="exception-risk-filter" class="filter-select">
+                        <option value="">All Risk Levels</option>
+                        <option value="high">High</option>
+                        <option value="medium">Medium</option>
+                        <option value="low">Low</option>
+                    </select>
+                    <select id="exception-entity-filter" class="filter-select">
+                        <option value="">All Entities</option>
+                    </select>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Entity</th>
+                                <th>Risk Rating</th>
+                                <th>Status</th>
+                                <th>Target Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="exceptions-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Audit Reports View -->
+            <section id="reports-view" class="view-section">
+                <div class="view-header">
+                    <h2>Audit Reports</h2>
+                    <button class="btn btn-primary" id="add-report-btn">+ Add Report</button>
+                </div>
+
+                <div class="filters-bar">
+                    <input type="text" id="report-search" placeholder="Search reports..." class="search-input">
+                    <select id="report-entity-filter" class="filter-select">
+                        <option value="">All Entities</option>
+                    </select>
+                    <select id="report-year-filter" class="filter-select">
+                        <option value="">All Years</option>
+                    </select>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Report Name</th>
+                                <th>Entity</th>
+                                <th>Fiscal Year</th>
+                                <th>Quarter</th>
+                                <th>Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="reports-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Entities View -->
+            <section id="entities-view" class="view-section">
+                <div class="view-header">
+                    <h2>Entities / Departments</h2>
+                    <button class="btn btn-primary" id="add-entity-btn">+ Add Entity</button>
+                </div>
+
+                <div class="filters-bar">
+                    <input type="text" id="entity-search" placeholder="Search entities..." class="search-input">
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Entity Name</th>
+                                <th>Responsible Manager</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="entities-table-body">
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Fiscal Years View -->
+            <section id="fiscalyears-view" class="view-section">
+                <div class="view-header">
+                    <h2>Fiscal Years</h2>
+                    <button class="btn btn-primary" id="add-fiscalyear-btn">+ Add Fiscal Year</button>
+                </div>
+
+                <div class="fiscal-years-container" id="fiscal-years-container">
+                </div>
+            </section>
+
+            <!-- Reports & Views -->
+            <section id="views-view" class="view-section">
+                <div class="view-header">
+                    <h2>Reports & Views</h2>
+                    <p class="subtitle">Specialized views and reports</p>
+                </div>
+
+                <div class="reports-grid">
+                    <div class="report-card" id="view-exceptions-by-quarter">
+                        <div class="report-icon">📅</div>
+                        <h3>Exceptions by Quarter</h3>
+                        <p>View all exceptions grouped by fiscal quarter</p>
+                        <button class="btn btn-secondary view-report-btn">View Report</button>
+                    </div>
+                    <div class="report-card" id="view-exceptions-by-entity">
+                        <div class="report-icon">🏢</div>
+                        <h3>Exceptions by Entity</h3>
+                        <p>View all exceptions grouped by entity/department</p>
+                        <button class="btn btn-secondary view-report-btn">View Report</button>
+                    </div>
+                    <div class="report-card" id="view-open-exceptions-by-quarter">
+                        <div class="report-icon">⚠️</div>
+                        <h3>Open Exceptions by Quarter</h3>
+                        <p>View only open exceptions grouped by quarter</p>
+                        <button class="btn btn-secondary view-report-btn">View Report</button>
+                    </div>
+                </div>
+
+                <div id="report-details-container" class="report-details-container" style="display: none;">
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal for Add/Edit Forms -->
+    <div id="modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">Modal Title</h3>
+                <button class="close-btn" id="close-modal">&times;</button>
+            </div>
+            <div class="modal-body" id="modal-body">
+                <!-- Dynamic content will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
