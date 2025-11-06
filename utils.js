@@ -166,48 +166,47 @@ class EmailGenerator {
         email += `This is a follow-up regarding the open audit exceptions from the "${reportName}" audit report dated ${reportDate}. `;
         email += `We would appreciate receiving an update on the current status and progress of these items.\n\n`;
 
-        // Exception table header
+        // Exception list header
         email += `Below is a summary of the pending exceptions that require your attention:\n\n`;
-
-        email += `${'='.repeat(100)}\n`;
-        email += `| ${'Exception Title & Description'.padEnd(55)} | ${'Status Update (To be completed)'.padEnd(40)} |\n`;
-        email += `${'='.repeat(100)}\n`;
-
-        exceptions.forEach((exception) => {
-            const isOveraged = DateUtils.isOveraged(exception.target_date);
-            const daysOverdue = DateUtils.getDaysOverdue(exception.target_date);
-
-            // Exception title and details
-            let exceptionInfo = `${exception.title}\n`;
-            exceptionInfo += `  Risk Level: ${exception.risk_rating.toUpperCase()}\n`;
-            exceptionInfo += `  Target Date: ${i18n.formatDate(exception.target_date)}`;
-
-            if (isOveraged) {
-                exceptionInfo += ` (⚠️ OVERAGED by ${daysOverdue} days)`;
-            }
-
-            exceptionInfo += `\n  Description: ${exception.description}\n`;
-            exceptionInfo += `  Recommendation: ${exception.recommendations}`;
-
-            // Format for table cell (wrap text if needed)
-            const lines = exceptionInfo.split('\n');
-            const statusCell = '[Please provide status update here]';
-
-            // First line
-            email += `| ${lines[0].substring(0, 55).padEnd(55)} | ${statusCell.padEnd(40)} |\n`;
-
-            // Subsequent lines
-            for (let i = 1; i < lines.length; i++) {
-                email += `| ${lines[i].substring(0, 55).padEnd(55)} | ${' '.padEnd(40)} |\n`;
-            }
-
-            email += `${'-'.repeat(100)}\n`;
-        });
 
         email += `${'='.repeat(100)}\n\n`;
 
+        exceptions.forEach((exception, index) => {
+            const isOveraged = DateUtils.isOveraged(exception.target_date);
+            const daysOverdue = DateUtils.getDaysOverdue(exception.target_date);
+
+            // Exception number and title
+            email += `EXCEPTION #${index + 1}: ${exception.title}\n`;
+            email += `${'-'.repeat(100)}\n\n`;
+
+            // Exception details
+            email += `Risk Level: ${exception.risk_rating.toUpperCase()}`;
+            if (isOveraged) {
+                email += ` (⚠️ OVERAGED by ${daysOverdue} days)`;
+            }
+            email += `\n`;
+
+            email += `Target Date: ${i18n.formatDate(exception.target_date)}\n\n`;
+
+            email += `Description:\n${exception.description}\n\n`;
+
+            email += `Recommendation:\n${exception.recommendations}\n\n`;
+
+            // Status update section
+            email += `STATUS UPDATE (To be completed by manager):\n`;
+            email += `┌${'─'.repeat(98)}┐\n`;
+            email += `│ ${' '.repeat(97)}│\n`;
+            email += `│ ${' '.repeat(97)}│\n`;
+            email += `│ ${' '.repeat(97)}│\n`;
+            email += `│ ${' '.repeat(97)}│\n`;
+            email += `│ ${' '.repeat(97)}│\n`;
+            email += `└${'─'.repeat(98)}┘\n\n`;
+
+            email += `${'='.repeat(100)}\n\n`;
+        });
+
         // Instructions
-        email += `Please complete the "Status Update" column for each exception with:\n`;
+        email += `Please complete the "STATUS UPDATE" section for each exception with:\n`;
         email += `  • Current status of the remediation\n`;
         email += `  • Actions taken to date\n`;
         email += `  • Expected completion date (if still pending)\n`;

@@ -1383,3 +1383,46 @@ body {
 .timeline-rating {
     margin-top: 0.5rem;
 }
+
+/* ==========================================
+   Email View Styles
+   ========================================== */
+
+.email-view-content {
+    background: #ffffff;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 2rem;
+    margin: 1.5rem 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.9rem;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-x: auto;
+}
+
+.view-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    padding: 1rem;
+    background: var(--surface);
+    border-top: 1px solid var(--border-color);
+    border-radius: 0 0 var(--radius) var(--radius);
+}
+
+@media (max-width: 768px) {
+    .email-view-content {
+        padding: 1rem;
+        font-size: 0.75rem;
+    }
+
+    .view-actions {
+        flex-direction: column;
+    }
+
+    .view-actions .btn {
+        width: 100%;
+    }
+}

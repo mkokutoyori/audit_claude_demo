@@ -1098,7 +1098,13 @@ class AppState {
     async filterExceptionsByEntity(entityId) {
         this.filters.exceptions.entity = entityId.toString();
         this.navigateTo('exceptions');
-        this.renderExceptions();
+        await this.renderExceptions();
+
+        // Update the dropdown to reflect the selected entity
+        const entityFilter = document.getElementById('exception-entity-filter');
+        if (entityFilter) {
+            entityFilter.value = entityId.toString();
+        }
     }
 
     async generateReportEmail(reportId) {
@@ -1114,20 +1120,22 @@ class AppState {
 
         const emailContent = EmailGenerator.generateReportEmail(report, entity, openExceptions, i18n.getLanguage());
 
-        const body = `
-            <div class="email-draft-container">
-                <h3>${i18n.t('exceptions.emailDraft.title')}</h3>
-                <div class="email-preview">${emailContent}</div>
-                <div class="form-actions">
-                    <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Close</button>
-                    <button type="button" class="btn btn-info" onclick="app.copyEmailToClipboard()">📋 Copy to Clipboard</button>
-                    <button type="button" class="btn btn-primary" onclick="app.downloadEmail()">💾 Download as .txt</button>
-                </div>
-            </div>
-        `;
-
-        this.showModal('Email Draft', body);
+        // Store the email content and previous view
         this.currentEmailContent = emailContent;
+        this.previousViewBeforeEmail = this.currentView;
+
+        // Display in dedicated email view
+        document.getElementById('email-content').textContent = emailContent;
+        this.navigateTo('email');
+    }
+
+    goBackFromEmail() {
+        // Return to previous view
+        if (this.previousViewBeforeEmail) {
+            this.navigateTo(this.previousViewBeforeEmail);
+        } else {
+            this.navigateTo('reports');
+        }
     }
 
     copyEmailToClipboard() {
@@ -1618,6 +1626,11 @@ class AppState {
                 this.renderDashboard();
             }
         });
+    }
+
+    async editException(id) {
+        const exception = await this.db.getById('exceptions', id);
+        this.showExceptionForm(exception);
     }
 
     async deleteException(id) {

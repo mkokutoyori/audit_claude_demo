@@ -317,6 +317,19 @@
                 </div>
                 <div id="statistics-detail-content"></div>
             </section>
+
+            <!-- Email Draft View -->
+            <section id="email-view" class="view-section">
+                <div class="view-header">
+                    <button class="btn btn-secondary" onclick="app.goBackFromEmail()">← Back</button>
+                    <h2 data-i18n="exceptions.emailDraft.title">Email Draft</h2>
+                </div>
+                <div id="email-content" class="email-view-content"></div>
+                <div class="view-actions">
+                    <button class="btn btn-info" onclick="app.copyEmailToClipboard()">📋 Copy to Clipboard</button>
+                    <button class="btn btn-primary" onclick="app.downloadEmail()">💾 Download as .txt</button>
+                </div>
+            </section>
         </main>
     </div>
 
