@@ -6,6 +6,8 @@
     <title>Audit Exception Tracking System</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="i18n.js"></script>
+    <script src="utils.js"></script>
 </head>
 <body>
     <div class="app-container">
@@ -41,8 +43,14 @@
                 </a>
             </nav>
             <div class="sidebar-footer">
-                <button class="btn btn-sm btn-danger" onclick="resetAppDatabase()" style="width: calc(100% - 2rem); margin: 1rem; padding: 0.5rem;">
-                    🔄 Reset Database
+                <div style="padding: 0 1rem 0.5rem 1rem;">
+                    <select id="language-selector" class="language-select" onchange="app.changeLanguage(this.value)">
+                        <option value="en">🇬🇧 English</option>
+                        <option value="fr">🇫🇷 Français</option>
+                    </select>
+                </div>
+                <button class="btn btn-sm btn-danger" onclick="resetAppDatabase()" style="width: calc(100% - 2rem); margin: 0.5rem 1rem 1rem 1rem; padding: 0.5rem;">
+                    🔄 <span data-i18n="common.resetDatabase">Reset Database</span>
                 </button>
             </div>
         </aside>
@@ -120,6 +128,7 @@
                         <option value="">All Status</option>
                         <option value="open">Open</option>
                         <option value="closed">Closed</option>
+                        <option value="overaged">⚠️ Overaged</option>
                     </select>
                     <select id="exception-risk-filter" class="filter-select">
                         <option value="">All Risk Levels</option>

@@ -172,7 +172,39 @@ class AppState {
         await this.db.init();
         await this.loadSampleData();
         this.setupEventListeners();
+        this.updateLanguageSelector();
         this.renderDashboard();
+    }
+
+    // Change language
+    changeLanguage(lang) {
+        i18n.setLanguage(lang);
+        this.updateLanguageSelector();
+        this.renderCurrentView();
+        NotificationUtil.show(i18n.t('messages.updateSuccess'), 'success');
+    }
+
+    // Update language selector
+    updateLanguageSelector() {
+        const selector = document.getElementById('language-selector');
+        if (selector) {
+            selector.value = i18n.getLanguage();
+        }
+    }
+
+    // Render current view (refresh after language change)
+    renderCurrentView() {
+        this.switchView(this.currentView);
+    }
+
+    // Get overaged exceptions
+    getOveragedExceptions(exceptions) {
+        return exceptions.filter(ex => ex.status === 'open' && DateUtils.isOveraged(ex.target_date));
+    }
+
+    // Count overaged exceptions
+    countOveraged(exceptions) {
+        return this.getOveragedExceptions(exceptions).length;
     }
 
     async loadSampleData() {
@@ -714,27 +746,13 @@ class AppState {
             // Create fiscal year
             const fyId = await this.db.add('fiscalYears', { year, startDate, endDate });
 
-            // Auto-create 4 quarters
-            const start = new Date(startDate);
-            const end = new Date(endDate);
-            const quarterLength = Math.ceil((end - start) / (4 * 24 * 60 * 60 * 1000));
+            // Auto-create 4 quarters using proper calculation
+            const quarters = DateUtils.calculateQuarterDates(startDate, endDate);
 
-            for (let i = 0; i < 4; i++) {
-                const qStart = new Date(start);
-                qStart.setDate(qStart.getDate() + (quarterLength * i));
-                const qEnd = new Date(qStart);
-                qEnd.setDate(qEnd.getDate() + quarterLength - 1);
-
-                // Ensure last quarter ends on the fiscal year end date
-                if (i === 3) {
-                    qEnd.setTime(end.getTime());
-                }
-
+            for (const quarter of quarters) {
                 await this.db.add('quarters', {
                     fiscalYearId: fyId,
-                    name: `Q${i + 1}`,
-                    startDate: qStart.toISOString().split('T')[0],
-                    endDate: qEnd.toISOString().split('T')[0]
+                    ...quarter
                 });
             }
 
@@ -970,9 +988,15 @@ class AppState {
             );
         }
         if (this.filters.exceptions.status) {
-            filteredExceptions = filteredExceptions.filter(ex =>
-                ex.status === this.filters.exceptions.status
-            );
+            if (this.filters.exceptions.status === 'overaged') {
+                filteredExceptions = filteredExceptions.filter(ex =>
+                    ex.status === 'open' && DateUtils.isOveraged(ex.target_date)
+                );
+            } else {
+                filteredExceptions = filteredExceptions.filter(ex =>
+                    ex.status === this.filters.exceptions.status
+                );
+            }
         }
         if (this.filters.exceptions.risk) {
             filteredExceptions = filteredExceptions.filter(ex =>
@@ -1005,14 +1029,22 @@ class AppState {
         tbody.innerHTML = filteredExceptions.map(exception => {
             const report = reports.find(r => r.id === exception.reportId);
             const entity = entities.find(e => e.id === report?.entityId);
+            const isOveraged = exception.status === 'open' && DateUtils.isOveraged(exception.target_date);
+            const daysOverdue = DateUtils.getDaysOverdue(exception.target_date);
 
             return `
-                <tr>
+                <tr ${isOveraged ? 'style="background-color: #fef2f2;"' : ''}>
                     <td><strong>${exception.title}</strong></td>
                     <td>${entity?.name || 'N/A'}</td>
                     <td><span class="status-badge risk-${exception.risk_rating}">${exception.risk_rating}</span></td>
-                    <td><span class="status-badge status-${exception.status}">${exception.status}</span></td>
-                    <td>${exception.target_date || 'N/A'}</td>
+                    <td>
+                        <span class="status-badge status-${exception.status}">${exception.status}</span>
+                        ${isOveraged ? `<span class="status-badge status-overaged">⚠️ OVERAGED</span>` : ''}
+                    </td>
+                    <td>
+                        ${exception.target_date ? i18n.formatDate(exception.target_date) : 'N/A'}
+                        ${isOveraged ? `<br><span class="overaged-indicator">${daysOverdue} days overdue</span>` : ''}
+                    </td>
                     <td>
                         <div class="action-btns">
                             <button class="btn btn-sm btn-secondary" onclick="app.viewException(${exception.id})">View</button>

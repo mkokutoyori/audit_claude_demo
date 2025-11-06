@@ -70,6 +70,32 @@ body {
     margin-top: auto;
 }
 
+.language-select {
+    width: 100%;
+    padding: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius);
+    background-color: rgba(255, 255, 255, 0.1);
+    color: white;
+    font-size: 0.875rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.language-select:hover {
+    background-color: rgba(255, 255, 255, 0.15);
+}
+
+.language-select:focus {
+    outline: none;
+    border-color: var(--sidebar-active);
+}
+
+.language-select option {
+    background-color: var(--sidebar-bg);
+    color: white;
+}
+
 .sidebar-nav {
     padding: 1rem 0;
     flex: 1;
@@ -366,6 +392,83 @@ body {
 .risk-low {
     background-color: #dbeafe;
     color: #1e40af;
+}
+
+.status-overaged {
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #f87171;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+.overaged-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    color: var(--danger-color);
+    font-weight: 600;
+    font-size: 0.75rem;
+}
+
+.overaged-warning {
+    background-color: #fef2f2;
+    border-left: 4px solid var(--danger-color);
+    padding: 1rem;
+    margin: 1rem 0;
+    border-radius: var(--radius);
+}
+
+.overaged-warning h4 {
+    color: var(--danger-color);
+    margin-bottom: 0.5rem;
+}
+
+/* Email Draft Styles */
+.email-draft-container {
+    background: var(--surface);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    margin-top: 1rem;
+    box-shadow: var(--shadow-md);
+}
+
+.email-preview {
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    padding: 1rem;
+    margin: 1rem 0;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    white-space: pre-wrap;
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.json-editor {
+    width: 100%;
+    min-height: 300px;
+    font-family: 'Courier New', monospace;
+    font-size: 0.875rem;
+    padding: 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius);
+    background-color: #f8fafc;
+    resize: vertical;
+}
+
+.json-editor:focus {
+    outline: none;
+    border-color: var(--primary-color);
 }
 
 /* Action Buttons */
