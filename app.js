@@ -852,17 +852,18 @@ class AppState {
 
             return `
                 <tr>
-                    <td>${report.name}</td>
-                    <td>${entity?.name || 'N/A'}</td>
+                    <td><a href="#" class="link" onclick="app.viewReportDetail(${report.id}); return false;">${report.name}</a></td>
+                    <td><a href="#" class="link" onclick="app.filterExceptionsByEntity(${entity?.id}); return false;">${entity?.name || 'N/A'}</a></td>
                     <td>${fy?.year || 'N/A'}</td>
                     <td>${quarter?.name || 'N/A'}</td>
                     <td>${report.date || 'N/A'}</td>
                     <td><span class="status-badge dept-rating-${report.department_rating || 'na'}">${ratingLabels[report.department_rating] || 'N/A'}</span></td>
                     <td>
                         <div class="action-btns">
-                            <button class="btn btn-sm btn-info" onclick="app.generateReportEmail(${report.id})">📧 Email</button>
-                            <button class="btn btn-sm btn-secondary" onclick="app.editReport(${report.id})">Edit</button>
-                            <button class="btn btn-sm btn-danger" onclick="app.deleteReport(${report.id})">Delete</button>
+                            <button class="btn btn-sm btn-primary" onclick="app.viewReportDetail(${report.id})" title="View Details">👁️</button>
+                            <button class="btn btn-sm btn-info" onclick="app.generateReportEmail(${report.id})" title="Send Email">📧</button>
+                            <button class="btn btn-sm btn-secondary" onclick="app.editReport(${report.id})" title="Edit">✏️</button>
+                            <button class="btn btn-sm btn-danger" onclick="app.deleteReport(${report.id})" title="Delete">🗑️</button>
                         </div>
                     </td>
                 </tr>
@@ -987,6 +988,112 @@ class AppState {
             await this.db.delete('reports', id);
             this.renderReports();
         }
+    }
+
+    async viewReportDetail(reportId) {
+        const report = await this.db.getById('reports', reportId);
+        const entity = await this.db.getById('entities', report.entityId);
+        const quarter = await this.db.getById('quarters', report.quarterId);
+        const fiscalYear = await this.db.getById('fiscalYears', quarter.fiscalYearId);
+        const exceptions = await this.db.getByIndex('exceptions', 'reportId', reportId);
+
+        const ratingLabels = {
+            'satisfactory': 'Satisfactory',
+            'acceptable': 'Acceptable',
+            'needs_improvement': 'Needs Improvement',
+            'not_satisfactory': 'Not Satisfactory'
+        };
+
+        document.getElementById('report-detail-title').textContent = report.name;
+
+        const openExceptions = exceptions.filter(e => e.status === 'open');
+        const closedExceptions = exceptions.filter(e => e.status === 'closed');
+
+        let html = `
+            <div class="report-section">
+                <div class="report-info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Entity:</span>
+                        <span class="info-value"><a href="#" class="link" onclick="app.filterExceptionsByEntity(${entity.id}); return false;">${entity.name}</a></span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Fiscal Year:</span>
+                        <span class="info-value">${fiscalYear.year}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Quarter:</span>
+                        <span class="info-value">${quarter.name}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Report Date:</span>
+                        <span class="info-value">${i18n.formatDate(report.date)}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Department Rating:</span>
+                        <span class="info-value"><span class="status-badge dept-rating-${report.department_rating || 'na'}">${ratingLabels[report.department_rating] || 'N/A'}</span></span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Total Exceptions:</span>
+                        <span class="info-value">${exceptions.length} (${openExceptions.length} open, ${closedExceptions.length} closed)</span>
+                    </div>
+                </div>
+
+                <div class="action-buttons" style="margin-top: 1.5rem;">
+                    <button class="btn btn-info" onclick="app.generateReportEmail(${reportId})">📧 Generate Email</button>
+                    <button class="btn btn-secondary" onclick="app.editReport(${reportId})">✏️ Edit Report</button>
+                </div>
+            </div>
+
+            <div class="report-section">
+                <h3>Exceptions (${exceptions.length})</h3>
+                ${exceptions.length === 0 ? '<div class="empty-state"><div class="empty-state-icon">⚠️</div><p>No exceptions found</p></div>' : `
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Risk Rating</th>
+                                    <th>Status</th>
+                                    <th>Target Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${exceptions.map(exc => {
+                                    const isOveraged = DateUtils.isOveraged(exc.target_date);
+                                    const daysOverdue = DateUtils.getDaysOverdue(exc.target_date);
+
+                                    return `
+                                        <tr>
+                                            <td>${exc.title}</td>
+                                            <td><span class="status-badge risk-${exc.risk_rating}">${exc.risk_rating.toUpperCase()}</span></td>
+                                            <td><span class="status-badge status-${exc.status} ${isOveraged && exc.status === 'open' ? 'status-overaged' : ''}">${isOveraged && exc.status === 'open' ? '⚠️ OVERAGED' : exc.status.toUpperCase()}</span></td>
+                                            <td>${i18n.formatDate(exc.target_date)}${isOveraged && exc.status === 'open' ? ` (${daysOverdue} days overdue)` : ''}</td>
+                                            <td>
+                                                <div class="action-btns">
+                                                    <button class="btn btn-sm btn-secondary" onclick="app.viewException(${exc.id})">View</button>
+                                                    <button class="btn btn-sm btn-secondary" onclick="app.editException(${exc.id})">Edit</button>
+                                                    ${exc.status === 'open' ? `<button class="btn btn-sm btn-success" onclick="app.closeException(${exc.id})">Close</button>` : ''}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `}
+            </div>
+        `;
+
+        document.getElementById('report-detail-content').innerHTML = html;
+        this.navigateTo('report-detail');
+    }
+
+    async filterExceptionsByEntity(entityId) {
+        this.filters.exceptions.entity = entityId.toString();
+        this.navigateTo('exceptions');
+        this.renderExceptions();
     }
 
     async generateReportEmail(reportId) {
@@ -1530,29 +1637,39 @@ class AppState {
     // ==========================================
 
     async showReportView(viewId) {
-        const container = document.getElementById('report-details-container');
-        container.style.display = 'block';
+        const container = document.getElementById('statistics-detail-content');
+        const titleElement = document.getElementById('statistics-detail-title');
 
+        let title = '';
         switch(viewId) {
             case 'view-exceptions-by-quarter':
+                title = 'Exceptions by Quarter';
                 await this.renderExceptionsByQuarter(container);
                 break;
             case 'view-exceptions-by-entity':
+                title = 'Exceptions by Entity';
                 await this.renderExceptionsByEntity(container);
                 break;
             case 'view-open-exceptions-by-quarter':
+                title = 'Open Exceptions by Quarter';
                 await this.renderOpenExceptionsByQuarter(container);
                 break;
             case 'view-department-rating-timeline':
+                title = 'Department Rating Timeline';
                 await this.renderDepartmentRatingTimeline(container);
                 break;
             case 'view-quarterly-statistics':
+                title = 'Quarterly Statistics by Unit';
                 await this.renderQuarterlyStatistics(container);
                 break;
             case 'view-fiscal-year-closure':
+                title = 'Fiscal Year Closure Statistics';
                 await this.renderFiscalYearClosure(container);
                 break;
         }
+
+        titleElement.textContent = title;
+        this.navigateTo('statistics-detail');
     }
 
     async renderExceptionsByQuarter(container) {

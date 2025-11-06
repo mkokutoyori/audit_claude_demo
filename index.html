@@ -298,8 +298,24 @@
                     </div>
                 </div>
 
-                <div id="report-details-container" class="report-details-container" style="display: none;">
+            </section>
+
+            <!-- Report Detail View -->
+            <section id="report-detail-view" class="view-section">
+                <div class="view-header">
+                    <button class="btn btn-secondary" onclick="app.navigateTo('reports')">← Back to Reports</button>
+                    <h2 id="report-detail-title">Report Details</h2>
                 </div>
+                <div id="report-detail-content"></div>
+            </section>
+
+            <!-- Statistics Detail View -->
+            <section id="statistics-detail-view" class="view-section">
+                <div class="view-header">
+                    <button class="btn btn-secondary" onclick="app.navigateTo('views')">← Back to Reports & Views</button>
+                    <h2 id="statistics-detail-title">Statistics</h2>
+                </div>
+                <div id="statistics-detail-content"></div>
             </section>
         </main>
     </div>
