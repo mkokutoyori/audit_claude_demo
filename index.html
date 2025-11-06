@@ -49,11 +49,27 @@
                         <option value="fr">🇫🇷 Français</option>
                     </select>
                 </div>
+                <button class="btn btn-sm btn-primary" onclick="app.exportDatabase()" style="width: calc(100% - 2rem); margin: 0.5rem 1rem 0.5rem 1rem; padding: 0.5rem;">
+                    📥 Export Database
+                </button>
+                <button class="btn btn-sm btn-secondary" onclick="app.importDatabase()" style="width: calc(100% - 2rem); margin: 0.5rem 1rem 0.5rem 1rem; padding: 0.5rem;">
+                    📤 Import Database
+                </button>
                 <button class="btn btn-sm btn-danger" onclick="resetAppDatabase()" style="width: calc(100% - 2rem); margin: 0.5rem 1rem 1rem 1rem; padding: 0.5rem;">
-                    🔄 <span data-i18n="common.resetDatabase">Reset Database</span>
+                    🔄 Reset Database
                 </button>
             </div>
         </aside>
+
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-menu-toggle" id="mobile-menu-toggle" onclick="toggleMobileMenu()">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+
+        <!-- Mobile Menu Overlay -->
+        <div class="mobile-menu-overlay" id="mobile-menu-overlay" onclick="toggleMobileMenu()"></div>
 
         <!-- Main Content Area -->
         <main class="main-content">
@@ -132,9 +148,10 @@
                     </select>
                     <select id="exception-risk-filter" class="filter-select">
                         <option value="">All Risk Levels</option>
-                        <option value="high">High</option>
-                        <option value="medium">Medium</option>
-                        <option value="low">Low</option>
+                        <option value="exposure">Exposure</option>
+                        <option value="concern">Concern</option>
+                        <option value="housekeeping">Housekeeping</option>
+                        <option value="observation">Observation</option>
                     </select>
                     <select id="exception-entity-filter" class="filter-select">
                         <option value="">All Entities</option>
@@ -185,6 +202,7 @@
                                 <th>Fiscal Year</th>
                                 <th>Quarter</th>
                                 <th>Date</th>
+                                <th>Dept. Rating</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -255,6 +273,12 @@
                         <div class="report-icon">⚠️</div>
                         <h3>Open Exceptions by Quarter</h3>
                         <p>View only open exceptions grouped by quarter</p>
+                        <button class="btn btn-secondary view-report-btn">View Report</button>
+                    </div>
+                    <div class="report-card" id="view-department-rating-timeline">
+                        <div class="report-icon">📊</div>
+                        <h3>Department Rating Timeline</h3>
+                        <p>View historical ratings for each department</p>
                         <button class="btn btn-secondary view-report-btn">View Report</button>
                     </div>
                 </div>

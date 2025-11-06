@@ -55,9 +55,10 @@ const translations = {
                 closed: 'Closed',
                 overaged: 'Overaged',
                 allRisk: 'All Risk Levels',
-                high: 'High',
-                medium: 'Medium',
-                low: 'Low',
+                exposure: 'Exposure',
+                concern: 'Concern',
+                housekeeping: 'Housekeeping',
+                observation: 'Observation',
                 allEntities: 'All Entities'
             },
             table: {
@@ -384,9 +385,10 @@ const translations = {
                 closed: 'Clôturé',
                 overaged: 'En Retard',
                 allRisk: 'Tous les Niveaux de Risque',
-                high: 'Élevé',
-                medium: 'Moyen',
-                low: 'Faible',
+                exposure: 'Exposition',
+                concern: 'Préoccupation',
+                housekeeping: 'Tenue de Livres',
+                observation: 'Observation',
                 allEntities: 'Toutes les Entités'
             },
             table: {

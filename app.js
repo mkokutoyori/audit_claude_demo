@@ -5,7 +5,7 @@
 class Database {
     constructor() {
         this.dbName = 'AuditExceptionDB';
-        this.version = 3;
+        this.version = 4;
         this.db = null;
     }
 
@@ -401,15 +401,16 @@ class AppState {
 
         // Risk Rating Chart
         const riskData = {
-            high: exceptions.filter(e => e.risk_rating === 'high').length,
-            medium: exceptions.filter(e => e.risk_rating === 'medium').length,
-            low: exceptions.filter(e => e.risk_rating === 'low').length
+            exposure: exceptions.filter(e => e.risk_rating === 'exposure').length,
+            concern: exceptions.filter(e => e.risk_rating === 'concern').length,
+            housekeeping: exceptions.filter(e => e.risk_rating === 'housekeeping').length,
+            observation: exceptions.filter(e => e.risk_rating === 'observation').length
         };
 
         this.renderPieChart('riskChart',
-            ['High', 'Medium', 'Low'],
-            [riskData.high, riskData.medium, riskData.low],
-            ['#ef4444', '#f59e0b', '#3b82f6']
+            ['Exposure', 'Concern', 'Housekeeping', 'Observation'],
+            [riskData.exposure, riskData.concern, riskData.housekeeping, riskData.observation],
+            ['#ef4444', '#f59e0b', '#3b82f6', '#10b981']
         );
 
         // Entity Chart
@@ -812,7 +813,7 @@ class AppState {
         if (filteredReports.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="6" class="text-center">
+                    <td colspan="7" class="text-center">
                         <div class="empty-state">
                             <div class="empty-state-icon">📋</div>
                             <p>No audit reports found</p>
@@ -828,6 +829,13 @@ class AppState {
             const quarter = quarters.find(q => q.id === report.quarterId);
             const fy = fiscalYears.find(f => f.id === quarter?.fiscalYearId);
 
+            const ratingLabels = {
+                'satisfactory': 'Satisfactory',
+                'acceptable': 'Acceptable',
+                'needs_improvement': 'Needs Improvement',
+                'not_satisfactory': 'Not Satisfactory'
+            };
+
             return `
                 <tr>
                     <td>${report.name}</td>
@@ -835,6 +843,7 @@ class AppState {
                     <td>${fy?.year || 'N/A'}</td>
                     <td>${quarter?.name || 'N/A'}</td>
                     <td>${report.date || 'N/A'}</td>
+                    <td><span class="status-badge dept-rating-${report.department_rating || 'na'}">${ratingLabels[report.department_rating] || 'N/A'}</span></td>
                     <td>
                         <div class="action-btns">
                             <button class="btn btn-sm btn-secondary" onclick="app.editReport(${report.id})">Edit</button>
@@ -887,6 +896,16 @@ class AppState {
                     <label class="form-label">Report Date *</label>
                     <input type="date" class="form-input" id="report-date" value="${report?.date || ''}" required>
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Department Rating *</label>
+                    <select class="form-select" id="report-dept-rating" required>
+                        <option value="">Select Department Rating</option>
+                        <option value="satisfactory" ${report?.department_rating === 'satisfactory' ? 'selected' : ''}>Satisfactory</option>
+                        <option value="acceptable" ${report?.department_rating === 'acceptable' ? 'selected' : ''}>Acceptable</option>
+                        <option value="needs_improvement" ${report?.department_rating === 'needs_improvement' ? 'selected' : ''}>Needs Improvement</option>
+                        <option value="not_satisfactory" ${report?.department_rating === 'not_satisfactory' ? 'selected' : ''}>Not Satisfactory</option>
+                    </select>
+                </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save</button>
@@ -927,7 +946,8 @@ class AppState {
                 name: document.getElementById('report-name').value,
                 entityId: parseInt(document.getElementById('report-entity').value),
                 quarterId: parseInt(document.getElementById('report-quarter').value),
-                date: document.getElementById('report-date').value
+                date: document.getElementById('report-date').value,
+                department_rating: document.getElementById('report-dept-rating').value
             };
 
             if (report) {
@@ -1100,9 +1120,10 @@ class AppState {
                     <label class="form-label">Risk Rating *</label>
                     <select class="form-select" id="exception-risk-rating" required>
                         <option value="">Select Risk Rating</option>
-                        <option value="high" ${exception?.risk_rating === 'high' ? 'selected' : ''}>High</option>
-                        <option value="medium" ${exception?.risk_rating === 'medium' ? 'selected' : ''}>Medium</option>
-                        <option value="low" ${exception?.risk_rating === 'low' ? 'selected' : ''}>Low</option>
+                        <option value="exposure" ${exception?.risk_rating === 'exposure' ? 'selected' : ''}>Exposure</option>
+                        <option value="concern" ${exception?.risk_rating === 'concern' ? 'selected' : ''}>Concern</option>
+                        <option value="housekeeping" ${exception?.risk_rating === 'housekeeping' ? 'selected' : ''}>Housekeeping</option>
+                        <option value="observation" ${exception?.risk_rating === 'observation' ? 'selected' : ''}>Observation</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -1327,6 +1348,9 @@ class AppState {
             case 'view-open-exceptions-by-quarter':
                 await this.renderOpenExceptionsByQuarter(container);
                 break;
+            case 'view-department-rating-timeline':
+                await this.renderDepartmentRatingTimeline(container);
+                break;
         }
     }
 
@@ -1494,6 +1518,83 @@ class AppState {
         container.innerHTML = html;
     }
 
+    async renderDepartmentRatingTimeline(container) {
+        const reports = await this.db.getAll('reports');
+        const entities = await this.db.getAll('entities');
+        const quarters = await this.db.getAll('quarters');
+        const fiscalYears = await this.db.getAll('fiscalYears');
+
+        const entityMap = {};
+
+        // Group reports by entity
+        for (const report of reports) {
+            const entity = entities.find(e => e.id === report.entityId);
+            if (!entity) continue;
+
+            if (!entityMap[entity.id]) {
+                entityMap[entity.id] = {
+                    name: entity.name,
+                    manager: entity.manager,
+                    ratings: []
+                };
+            }
+
+            const quarter = quarters.find(q => q.id === report.quarterId);
+            const fy = fiscalYears.find(f => f.id === quarter?.fiscalYearId);
+
+            entityMap[entity.id].ratings.push({
+                reportName: report.name,
+                rating: report.department_rating,
+                date: report.date,
+                fiscalYear: fy?.year,
+                quarter: quarter?.name
+            });
+        }
+
+        // Sort ratings by date
+        Object.values(entityMap).forEach(entity => {
+            entity.ratings.sort((a, b) => new Date(a.date) - new Date(b.date));
+        });
+
+        const ratingLabels = {
+            'satisfactory': 'Satisfactory',
+            'acceptable': 'Acceptable',
+            'needs_improvement': 'Needs Improvement',
+            'not_satisfactory': 'Not Satisfactory'
+        };
+
+        let html = '<h2 class="mb-3">Department Rating Timeline</h2>';
+
+        if (Object.keys(entityMap).length === 0) {
+            html += '<div class="empty-state"><div class="empty-state-icon">📊</div><p>No department ratings found!</p></div>';
+        } else {
+            Object.values(entityMap).forEach(entity => {
+                html += `
+                    <div class="report-section">
+                        <h3>${entity.name}</h3>
+                        <p class="text-muted">Manager: ${entity.manager} | Total Audits: ${entity.ratings.length}</p>
+                        <div class="timeline">
+                            ${entity.ratings.map((rating, index) => `
+                                <div class="timeline-item">
+                                    <div class="timeline-marker"></div>
+                                    <div class="timeline-content">
+                                        <div class="timeline-date">${i18n.formatDate(rating.date)} - ${rating.fiscalYear} ${rating.quarter}</div>
+                                        <div class="timeline-report"><strong>${rating.reportName}</strong></div>
+                                        <div class="timeline-rating">
+                                            <span class="status-badge dept-rating-${rating.rating || 'na'}">${ratingLabels[rating.rating] || 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        container.innerHTML = html;
+    }
+
     // ==========================================
     // Modal Management
     // ==========================================
@@ -1506,6 +1607,91 @@ class AppState {
 
     closeModal() {
         document.getElementById('modal').classList.remove('active');
+    }
+
+    // ==========================================
+    // Import/Export Database
+    // ==========================================
+
+    async exportDatabase() {
+        try {
+            const jsonData = await DataExporter.exportAllData(this.db);
+            const filename = `audit_tracker_backup_${new Date().toISOString().split('T')[0]}.json`;
+            DataExporter.downloadJSON(jsonData, filename);
+            NotificationUtil.show('Database exported successfully!', 'success');
+        } catch (error) {
+            console.error('Export error:', error);
+            NotificationUtil.show('Failed to export database', 'error');
+        }
+    }
+
+    async importDatabase() {
+        const body = `
+            <form id="import-form">
+                <div class="alert alert-info">
+                    <strong>Warning:</strong> This will replace all existing data in the database. Make sure to export your current data first if you want to keep it.
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Select JSON File *</label>
+                    <input type="file" class="form-input" id="import-file" accept=".json" required>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Import</button>
+                </div>
+            </form>
+        `;
+
+        this.showModal('Import Database', body);
+
+        document.getElementById('import-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const fileInput = document.getElementById('import-file');
+            const file = fileInput.files[0];
+
+            if (!file) {
+                NotificationUtil.show('Please select a file', 'error');
+                return;
+            }
+
+            try {
+                const reader = new FileReader();
+                reader.onload = async (event) => {
+                    const jsonString = event.target.result;
+
+                    // Reset database first
+                    await this.db.resetDatabase();
+
+                    // Reinitialize database
+                    await this.db.init();
+
+                    // Import data
+                    const success = await DataExporter.importAllData(this.db, jsonString);
+
+                    if (success) {
+                        this.closeModal();
+                        NotificationUtil.show('Database imported successfully!', 'success');
+
+                        // Refresh the current view
+                        setTimeout(() => {
+                            location.reload();
+                        }, 1000);
+                    } else {
+                        NotificationUtil.show('Failed to import database. Invalid format.', 'error');
+                    }
+                };
+
+                reader.onerror = () => {
+                    NotificationUtil.show('Failed to read file', 'error');
+                };
+
+                reader.readAsText(file);
+            } catch (error) {
+                console.error('Import error:', error);
+                NotificationUtil.show('Failed to import database', 'error');
+            }
+        });
     }
 }
 
@@ -1548,3 +1734,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 });
+
+// ==========================================
+// Mobile Menu Toggle
+// ==========================================
+
+function toggleMobileMenu() {
+    const sidebar = document.querySelector('.sidebar');
+    const overlay = document.getElementById('mobile-menu-overlay');
+    sidebar.classList.toggle('open');
+    overlay.classList.toggle('active');
+}
