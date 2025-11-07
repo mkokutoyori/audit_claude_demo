@@ -456,7 +456,7 @@ class DataExporter {
     // Export all data as JSON
     static async exportAllData(db) {
         const data = {
-            version: '2.0',
+            version: '3.0',
             exportDate: new Date().toISOString(),
             entities: await db.getAll('entities'),
             fiscalYears: await db.getAll('fiscalYears'),
@@ -465,7 +465,8 @@ class DataExporter {
             exceptions: await db.getAll('exceptions'),
             audits: await db.getAll('audits'),
             comments: await db.getAll('comments'),
-            auditLog: await db.getAll('auditLog')
+            auditLog: await db.getAll('auditLog'),
+            sqlQueries: await db.getAll('sqlQueries')
         };
 
         return JSON.stringify(data, null, 2);
@@ -525,6 +526,13 @@ class DataExporter {
             if (data.auditLog && Array.isArray(data.auditLog)) {
                 for (const logEntry of data.auditLog) {
                     await db.add('auditLog', logEntry);
+                }
+            }
+
+            // Import SQL queries (optional, for v3.0+ exports)
+            if (data.sqlQueries && Array.isArray(data.sqlQueries)) {
+                for (const query of data.sqlQueries) {
+                    await db.add('sqlQueries', query);
                 }
             }
 

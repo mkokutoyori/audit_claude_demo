@@ -5,7 +5,7 @@
 class Database {
     constructor() {
         this.dbName = 'AuditExceptionDB';
-        this.version = 6;
+        this.version = 7;
         this.db = null;
     }
 
@@ -106,6 +106,16 @@ class Database {
                         auditStore.createIndex('quarterId', 'quarterId', { unique: false });
                         auditStore.createIndex('status', 'status', { unique: false });
                         auditStore.createIndex('auditor', 'auditor', { unique: false });
+                    }
+                }
+
+                // Version 7 upgrades - SQL Queries Module
+                if (event.oldVersion < 7) {
+                    // SQL Queries Store
+                    if (!db.objectStoreNames.contains('sqlQueries')) {
+                        const sqlStore = db.createObjectStore('sqlQueries', { keyPath: 'id', autoIncrement: true });
+                        sqlStore.createIndex('title', 'title', { unique: false });
+                        sqlStore.createIndex('created_at', 'created_at', { unique: false });
                     }
                 }
             };
@@ -258,13 +268,15 @@ class AppState {
             exceptions: { search: '', status: '', risk: '', entity: '', quarter: '' },
             reports: { search: '', entity: '', year: '' },
             entities: { search: '' },
-            audits: { status: '', quarter: '' }
+            audits: { status: '', quarter: '' },
+            sqlQueries: { search: '' }
         };
         this.pagination = {
             exceptions: { currentPage: 1, itemsPerPage: 20 },
             reports: { currentPage: 1, itemsPerPage: 20 },
             entities: { currentPage: 1, itemsPerPage: 20 },
-            audits: { currentPage: 1, itemsPerPage: 20 }
+            audits: { currentPage: 1, itemsPerPage: 20 },
+            sqlQueries: { currentPage: 1, itemsPerPage: 20 }
         };
     }
 
@@ -441,6 +453,14 @@ class AppState {
             this.renderAuditPlanning();
         });
 
+        // SQL Queries
+        document.getElementById('add-sql-query-btn').addEventListener('click', () => this.showSqlQueryForm());
+        document.getElementById('sql-query-search').addEventListener('input', (e) => {
+            this.filters.sqlQueries.search = e.target.value;
+            this.pagination.sqlQueries.currentPage = 1; // Reset to first page
+            this.renderSqlQueries();
+        });
+
         // Report views
         document.querySelectorAll('.report-card .view-report-btn').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -489,6 +509,9 @@ class AppState {
             case 'audit-planning':
                 this.renderAuditPlanning();
                 break;
+            case 'sql-queries':
+                this.renderSqlQueries();
+                break;
             case 'views':
                 // Reports view - no initial render needed
                 break;
@@ -518,6 +541,9 @@ class AppState {
                     break;
                 case 'audits':
                     this.renderAuditPlanning();
+                    break;
+                case 'sqlQueries':
+                    this.renderSqlQueries();
                     break;
             }
         }
@@ -3866,6 +3892,210 @@ class AppState {
 
     closeModal() {
         document.getElementById('modal').classList.remove('active');
+    }
+
+    // ==========================================
+    // SQL Queries Management
+    // ==========================================
+
+    async renderSqlQueries() {
+        const sqlQueries = await this.db.getAll('sqlQueries');
+        const tbody = document.getElementById('sql-queries-table-body');
+
+        let filteredQueries = sqlQueries;
+
+        // Apply search filter
+        if (this.filters.sqlQueries.search) {
+            const search = this.filters.sqlQueries.search.toLowerCase();
+            filteredQueries = filteredQueries.filter(q =>
+                q.title.toLowerCase().includes(search) ||
+                (q.description && q.description.toLowerCase().includes(search)) ||
+                (q.code && q.code.toLowerCase().includes(search))
+            );
+        }
+
+        // Apply pagination
+        const paginationInfo = PaginationUtil.createPagination(
+            filteredQueries,
+            this.pagination.sqlQueries.currentPage,
+            this.pagination.sqlQueries.itemsPerPage
+        );
+
+        if (filteredQueries.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="text-center">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">💾</div>
+                            <p>No SQL queries found</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            // Clear pagination
+            const paginationContainer = tbody.closest('.table-container');
+            const existingPagination = paginationContainer.querySelector('.pagination-container');
+            if (existingPagination) existingPagination.remove();
+            return;
+        }
+
+        tbody.innerHTML = paginationInfo.items.map(query => `
+            <tr>
+                <td><strong>${query.title}</strong></td>
+                <td>${query.description || '-'}</td>
+                <td>${query.created_at ? DateUtils.formatDate(query.created_at) : '-'}</td>
+                <td>
+                    <div class="action-btns">
+                        <button class="btn btn-sm btn-primary" onclick="app.viewSqlQuery(${query.id})" title="View">👁️</button>
+                        <button class="btn btn-sm btn-secondary" onclick="app.editSqlQuery(${query.id})" title="Edit">✏️</button>
+                        <button class="btn btn-sm btn-danger" onclick="app.deleteSqlQuery(${query.id})" title="Delete">🗑️</button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+
+        // Add pagination controls
+        const paginationContainer = tbody.closest('.table-container');
+        const existingPagination = paginationContainer.querySelector('.pagination-container');
+        if (existingPagination) existingPagination.remove();
+
+        const paginationHtml = PaginationUtil.renderPaginationControls(paginationInfo, 'sqlQueries');
+        if (paginationHtml) {
+            paginationContainer.insertAdjacentHTML('beforeend', paginationHtml);
+        }
+    }
+
+    showSqlQueryForm(query = null) {
+        const title = query ? 'Edit SQL Query' : 'Add SQL Query';
+        const body = `
+            <form id="sql-query-form">
+                <div class="form-group">
+                    <label class="form-label">Title *</label>
+                    <input type="text" class="form-input" id="sql-query-title" value="${query?.title || ''}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Description</label>
+                    <textarea class="form-input" id="sql-query-description" rows="3">${query?.description || ''}</textarea>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">SQL Code *</label>
+                    <textarea class="form-input" id="sql-query-code" rows="10" style="font-family: 'Courier New', monospace;" required>${query?.code || ''}</textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        `;
+
+        this.showModal(title, body);
+
+        document.getElementById('sql-query-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                title: document.getElementById('sql-query-title').value,
+                description: document.getElementById('sql-query-description').value,
+                code: document.getElementById('sql-query-code').value,
+                updated_at: new Date().toISOString()
+            };
+
+            if (query) {
+                data.id = query.id;
+                data.created_at = query.created_at;
+                await this.db.update('sqlQueries', data);
+                NotificationUtil.show('SQL query updated successfully!', 'success');
+            } else {
+                data.created_at = new Date().toISOString();
+                await this.db.add('sqlQueries', data);
+                NotificationUtil.show('SQL query added successfully!', 'success');
+            }
+
+            this.closeModal();
+            this.renderSqlQueries();
+        });
+    }
+
+    async viewSqlQuery(id) {
+        const query = await this.db.getById('sqlQueries', id);
+        if (!query) {
+            NotificationUtil.show('SQL query not found', 'error');
+            return;
+        }
+
+        const body = `
+            <div class="sql-query-detail">
+                <div class="form-group">
+                    <label class="form-label">Title</label>
+                    <div class="detail-value"><strong>${query.title}</strong></div>
+                </div>
+                ${query.description ? `
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <div class="detail-value">${query.description}</div>
+                    </div>
+                ` : ''}
+                <div class="form-group">
+                    <label class="form-label">SQL Code</label>
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; font-family: 'Courier New', monospace; white-space: pre-wrap; overflow-x: auto;">${query.code}</div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Created</label>
+                    <div class="detail-value">${query.created_at ? DateUtils.formatDate(query.created_at) : 'N/A'}</div>
+                </div>
+                ${query.updated_at && query.updated_at !== query.created_at ? `
+                    <div class="form-group">
+                        <label class="form-label">Last Updated</label>
+                        <div class="detail-value">${DateUtils.formatDate(query.updated_at)}</div>
+                    </div>
+                ` : ''}
+                <div class="form-actions">
+                    <button class="btn btn-secondary" onclick="app.closeModal()">Close</button>
+                    <button class="btn btn-primary" onclick="app.copySqlQueryCode(${id})">📋 Copy Code</button>
+                </div>
+            </div>
+        `;
+
+        this.showModal('SQL Query Details', body);
+    }
+
+    async copySqlQueryCode(id) {
+        const query = await this.db.getById('sqlQueries', id);
+        if (!query) {
+            NotificationUtil.show('SQL query not found', 'error');
+            return;
+        }
+
+        try {
+            await navigator.clipboard.writeText(query.code);
+            NotificationUtil.show('SQL code copied to clipboard!', 'success');
+        } catch (error) {
+            console.error('Failed to copy:', error);
+            NotificationUtil.show('Failed to copy SQL code', 'error');
+        }
+    }
+
+    async editSqlQuery(id) {
+        const query = await this.db.getById('sqlQueries', id);
+        if (!query) {
+            NotificationUtil.show('SQL query not found', 'error');
+            return;
+        }
+        this.showSqlQueryForm(query);
+    }
+
+    async deleteSqlQuery(id) {
+        if (!confirm('Are you sure you want to delete this SQL query?')) {
+            return;
+        }
+
+        try {
+            await this.db.delete('sqlQueries', id);
+            NotificationUtil.show('SQL query deleted successfully!', 'success');
+            this.renderSqlQueries();
+        } catch (error) {
+            console.error('Delete error:', error);
+            NotificationUtil.show('Failed to delete SQL query', 'error');
+        }
     }
 
     // ==========================================

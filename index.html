@@ -45,6 +45,10 @@
                     <span class="nav-icon">📋</span>
                     <span>Audit Planning</span>
                 </a>
+                <a href="#" class="nav-item" data-view="sql-queries">
+                    <span class="nav-icon">💾</span>
+                    <span>SQL Queries</span>
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <div style="padding: 0 1rem 0.5rem 1rem;">
@@ -410,6 +414,41 @@
                     <h2 data-i18n="overaged.title">Overaged Exceptions Report</h2>
                 </div>
                 <div id="overaged-report-content"></div>
+            </section>
+
+            <!-- SQL Queries View -->
+            <section id="sql-queries-view" class="view-section">
+                <div class="view-header">
+                    <h2>SQL Queries</h2>
+                    <p class="subtitle">Manage your SQL query library</p>
+                    <button class="btn btn-primary" id="add-sql-query-btn">
+                        <span>+ Add SQL Query</span>
+                    </button>
+                </div>
+
+                <!-- Search Bar -->
+                <div class="filters-bar" style="margin-bottom: 1.5rem;">
+                    <input type="text" id="sql-query-search" class="filter-input" placeholder="Search queries by title, description, or code...">
+                </div>
+
+                <!-- SQL Queries Table -->
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Description</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sql-queries-table-body">
+                            <tr>
+                                <td colspan="4" class="loading-state">Loading SQL queries...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </section>
         </main>
     </div>
