@@ -153,93 +153,118 @@ class EmailGenerator {
         return lines;
     }
 
-    // Generate email for open exceptions in a report
+    // Generate email for open exceptions in a report - Markdown format
     static generateReportEmail(report, entity, exceptions, lang = 'en') {
         const managerName = entity.manager || 'Manager';
         const reportName = report.name;
         const reportDate = i18n.formatDate(report.date);
         const deadline = DateUtils.getFollowUpDeadline(7);
 
-        const col1Width = 68;
-        const col2Width = 43;
-        const totalWidth = col1Width + col2Width + 5; // +5 for borders and spacing
-
         let email = '';
 
         // Subject
-        email += `Subject: Follow-up on Open Audit Exceptions - ${reportName}\n\n`;
+        email += `**Subject:** Follow-up on Open Audit Exceptions – ${reportName}\n\n`;
 
         // Greeting
-        email += `Dear ${managerName},\n\n`;
+        email += `Dear **${managerName}**,\n\n`;
 
         // Introduction
         email += `I hope this email finds you well.\n\n`;
-        email += `This is a follow-up regarding the open audit exceptions from the "${reportName}" audit report dated ${reportDate}. `;
+        email += `This is a follow-up regarding the open audit exceptions from the **"${reportName}"** audit report dated **${reportDate}**. `;
         email += `We would appreciate receiving an update on the current status and progress of these items.\n\n`;
         email += `Below is a summary of the pending exceptions that require your attention:\n\n`;
 
-        // Table header
-        email += `+${'-'.repeat(col1Width)}+${'-'.repeat(col2Width)}+\n`;
-        email += `| ${'Exception Title & Description'.padEnd(col1Width - 2)} | ${'Status Update (To be completed)'.padEnd(col2Width - 2)} |\n`;
-        email += `+${'-'.repeat(col1Width)}+${'-'.repeat(col2Width)}+\n`;
+        // Markdown table header
+        email += `| **No.** | **Exception Title & Description** | **Status Update (To be completed)** |\n`;
+        email += `| :-----: | :------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------- |\n`;
 
         // Table rows
         exceptions.forEach((exception, index) => {
             const isOveraged = DateUtils.isOveraged(exception.target_date);
             const daysOverdue = DateUtils.getDaysOverdue(exception.target_date);
-            const overagedTag = isOveraged ? ` (⚠️ OVERAGED by ${daysOverdue} days)` : '';
+            const overagedTag = isOveraged ? ` ⚠️ **OVERAGED by ${daysOverdue} days**` : '';
 
-            // Build exception details
-            let details = [];
-            details.push(`${index + 1}. ${exception.title}`);
-            details.push('');
-            details.push(`Risk Level: ${exception.risk_rating.toUpperCase()}${overagedTag}`);
-            details.push(`Target Date: ${i18n.formatDate(exception.target_date)}`);
-            details.push('');
-            details.push('Description:');
-            this.wrapText(exception.description, col1Width - 2).forEach(line => details.push(line));
-            details.push('');
-            details.push('Recommendation:');
-            this.wrapText(exception.recommendations, col1Width - 2).forEach(line => details.push(line));
+            // Build exception details with line breaks
+            let details = `**Title:** ${exception.title}<br>`;
+            details += `**Risk Level:** ${exception.risk_rating.charAt(0).toUpperCase() + exception.risk_rating.slice(1)}${overagedTag}<br>`;
+            details += `**Target Date:** ${i18n.formatDate(exception.target_date)}<br>`;
+            details += `**Description:** ${exception.description}<br>`;
+            details += `**Recommendation:** ${exception.recommendations}`;
 
-            // Status update placeholder
-            const statusLines = [
-                '[Please provide status update here]',
-                '',
-                '',
-                '',
-                ''
-            ];
+            const statusUpdate = `[Please provide status update here – include current status, actions taken, expected completion date, and any challenges or support needed.]`;
 
-            // Determine max lines
-            const maxLines = Math.max(details.length, statusLines.length);
-
-            // Write rows
-            for (let i = 0; i < maxLines; i++) {
-                const col1Text = (details[i] || '').substring(0, col1Width - 2).padEnd(col1Width - 2);
-                const col2Text = (statusLines[i] || '').substring(0, col2Width - 2).padEnd(col2Width - 2);
-                email += `| ${col1Text} | ${col2Text} |\n`;
-            }
-
-            email += `+${'-'.repeat(col1Width)}+${'-'.repeat(col2Width)}+\n`;
+            email += `| **${index + 1}** | ${details} | ${statusUpdate} |\n`;
         });
 
+        email += `\n`;
+
         // Instructions
-        email += `\nPlease complete the "Status Update" column for each exception with:\n`;
-        email += `  • Current status of the remediation\n`;
-        email += `  • Actions taken to date\n`;
-        email += `  • Expected completion date (if still pending)\n`;
-        email += `  • Any challenges or support needed\n\n`;
+        email += `Please complete the **"Status Update"** column for each exception with:\n\n`;
+        email += `* Current status of the remediation\n`;
+        email += `* Actions taken to date\n`;
+        email += `* Expected completion date (if still pending)\n`;
+        email += `* Any challenges or support needed\n\n`;
 
         // Closing
-        email += `We would appreciate receiving your response by ${deadline}.\n\n`;
+        email += `We would appreciate receiving your response by **${deadline}**.\n\n`;
         email += `Should you have any questions or require clarification on any of the exceptions, please do not hesitate to contact us.\n\n`;
 
         // Signature
         email += `Best regards,\n`;
-        email += `Internal Audit Team\n`;
+        email += `**Internal Audit Team**\n`;
 
         return email;
+    }
+
+    // Convert Markdown to HTML
+    static markdownToHtml(markdown) {
+        let html = markdown;
+
+        // Convert tables
+        const tableRegex = /\|(.+)\|\n\|[\s:|-]+\|\n((?:\|.+\|\n?)+)/g;
+        html = html.replace(tableRegex, (match, header, body) => {
+            const headers = header.split('|').map(h => h.trim()).filter(h => h);
+            const rows = body.trim().split('\n').map(row =>
+                row.split('|').map(cell => cell.trim()).filter(cell => cell)
+            );
+
+            let table = '<table class="email-table">\n<thead>\n<tr>\n';
+            headers.forEach(h => {
+                table += `<th>${h}</th>\n`;
+            });
+            table += '</tr>\n</thead>\n<tbody>\n';
+
+            rows.forEach(row => {
+                table += '<tr>\n';
+                row.forEach(cell => {
+                    table += `<td>${cell}</td>\n`;
+                });
+                table += '</tr>\n';
+            });
+
+            table += '</tbody>\n</table>';
+            return table;
+        });
+
+        // Convert bold text
+        html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+        // Convert line breaks
+        html = html.replace(/<br>/g, '<br>');
+
+        // Convert bullet lists
+        html = html.replace(/^\* (.+)$/gm, '<li>$1</li>');
+        html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+
+        // Convert paragraphs (double line breaks)
+        html = html.split('\n\n').map(para => {
+            if (para.startsWith('<table') || para.startsWith('<ul') || para.startsWith('<li>')) {
+                return para;
+            }
+            return `<p>${para.replace(/\n/g, '<br>')}</p>`;
+        }).join('\n');
+
+        return html;
     }
 
     // Download email as text file

@@ -1171,7 +1171,10 @@ class AppState {
                                                 <div class="action-btns">
                                                     <button class="btn btn-sm btn-secondary" onclick="app.viewException(${exc.id})">View</button>
                                                     <button class="btn btn-sm btn-secondary" onclick="app.editException(${exc.id})">Edit</button>
-                                                    ${exc.status === 'open' ? `<button class="btn btn-sm btn-success" onclick="app.closeException(${exc.id})">Close</button>` : ''}
+                                                    ${exc.status === 'open' ?
+                                                        `<button class="btn btn-sm btn-success" onclick="app.closeException(${exc.id})">Close</button>` :
+                                                        `<button class="btn btn-sm btn-warning" onclick="app.reopenException(${exc.id})">Reopen</button>`
+                                                    }
                                                 </div>
                                             </td>
                                         </tr>
@@ -1211,14 +1214,16 @@ class AppState {
             return;
         }
 
-        const emailContent = EmailGenerator.generateReportEmail(report, entity, openExceptions, i18n.getLanguage());
+        const emailMarkdown = EmailGenerator.generateReportEmail(report, entity, openExceptions, i18n.getLanguage());
+        const emailHtml = EmailGenerator.markdownToHtml(emailMarkdown);
 
         // Store the email content and previous view
-        this.currentEmailContent = emailContent;
+        this.currentEmailContent = emailMarkdown;
+        this.currentEmailHtml = emailHtml;
         this.previousViewBeforeEmail = this.currentView;
 
-        // Display in dedicated email view
-        document.getElementById('email-content').textContent = emailContent;
+        // Display in dedicated email view (as formatted HTML)
+        document.getElementById('email-content').innerHTML = emailHtml;
         this.navigateTo('email');
     }
 
@@ -1476,9 +1481,10 @@ class AppState {
                     <td>
                         <div class="action-btns">
                             <button class="btn btn-sm btn-secondary" onclick="app.viewException(${exception.id})">View</button>
-                            ${exception.status === 'open' ? `
-                                <button class="btn btn-sm btn-success" onclick="app.closeException(${exception.id})">Close</button>
-                            ` : ''}
+                            ${exception.status === 'open' ?
+                                `<button class="btn btn-sm btn-success" onclick="app.closeException(${exception.id})">Close</button>` :
+                                `<button class="btn btn-sm btn-warning" onclick="app.reopenException(${exception.id})">Reopen</button>`
+                            }
                             <button class="btn btn-sm btn-danger" onclick="app.deleteException(${exception.id})">Delete</button>
                         </div>
                     </td>
@@ -1849,6 +1855,61 @@ class AppState {
     async editException(id) {
         const exception = await this.db.getById('exceptions', id);
         this.showExceptionForm(exception);
+    }
+
+    async reopenException(id) {
+        const exception = await this.db.getById('exceptions', id);
+
+        const body = `
+            <form id="reopen-exception-form">
+                <div class="alert alert-info">
+                    You are reopening exception: <strong>${exception.title}</strong>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Reason for Reopening *</label>
+                    <textarea class="form-textarea" id="reopen-reason" placeholder="Document why this exception is being reopened, what issues were found, and what needs to be addressed..." required></textarea>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-warning">Reopen Exception</button>
+                </div>
+            </form>
+        `;
+
+        this.showModal('Reopen Exception', body);
+
+        document.getElementById('reopen-exception-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const reopenReason = document.getElementById('reopen-reason').value;
+
+            // Store closure information before reopening
+            const previousClosureInfo = {
+                closure_date: exception.closure_date,
+                closure_comments: exception.closure_comments,
+                reopened_date: new Date().toISOString().split('T')[0],
+                reopen_reason: reopenReason
+            };
+
+            // Add to comments/history
+            await this.db.addComment(id, `Exception reopened. Previous closure date: ${exception.closure_date}. Reason: ${reopenReason}`, 'Auditor', true);
+
+            // Update exception status
+            exception.status = 'open';
+            exception.closure_date = null;
+            exception.closure_comments = null;
+
+            await this.db.update('exceptions', exception);
+
+            // Log the change
+            await this.db.logChange('exception', id, 'reopen', previousClosureInfo);
+
+            this.closeModal();
+            NotificationUtil.show('Exception reopened successfully', 'success');
+
+            // Refresh all views
+            await this.refreshAllViews();
+        });
     }
 
     async deleteException(id) {
@@ -3159,6 +3220,7 @@ class AppState {
                     create: '#10b981',
                     update: '#3b82f6',
                     delete: '#ef4444',
+                    reopen: '#f59e0b',
                     comment_added: '#8b5cf6',
                     comment_deleted: '#f59e0b'
                 };
