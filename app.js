@@ -257,7 +257,8 @@ class AppState {
         this.filters = {
             exceptions: { search: '', status: '', risk: '', entity: '' },
             reports: { search: '', entity: '', year: '' },
-            entities: { search: '' }
+            entities: { search: '' },
+            audits: { status: '', quarter: '' }
         };
     }
 
@@ -416,6 +417,16 @@ class AppState {
         document.getElementById('entity-search').addEventListener('input', (e) => {
             this.filters.entities.search = e.target.value;
             this.renderEntities();
+        });
+
+        // Audit filters
+        document.getElementById('audit-status-filter').addEventListener('change', (e) => {
+            this.filters.audits.status = e.target.value;
+            this.renderAuditPlanning();
+        });
+        document.getElementById('audit-quarter-filter').addEventListener('change', (e) => {
+            this.filters.audits.quarter = e.target.value;
+            this.renderAuditPlanning();
         });
 
         // Report views
@@ -915,16 +926,35 @@ class AppState {
         const fiscalYears = await this.db.getAll('fiscalYears');
         const tbody = document.getElementById('audits-table-body');
 
+        // Populate quarter filter dropdown
+        const quarterFilter = document.getElementById('audit-quarter-filter');
+        const currentQuarterFilterValue = quarterFilter.value;
+        quarterFilter.innerHTML = '<option value="">All Quarters</option>' +
+            quarters.map(q => {
+                const fy = fiscalYears.find(f => f.id === q.fiscalYearId);
+                return `<option value="${q.id}">${fy?.year} ${q.name}</option>`;
+            }).join('');
+        quarterFilter.value = currentQuarterFilterValue;
+
+        // Apply filters
+        let filteredAudits = audits;
+        if (this.filters.audits.status) {
+            filteredAudits = filteredAudits.filter(a => a.status === this.filters.audits.status);
+        }
+        if (this.filters.audits.quarter) {
+            filteredAudits = filteredAudits.filter(a => a.quarterId === parseInt(this.filters.audits.quarter));
+        }
+
         // Get current quarter info
         const currentQuarterInfo = DateUtils.getCurrentQuarter(fiscalYears, quarters);
         this.renderCurrentQuarterInfo(currentQuarterInfo, audits);
 
-        if (audits.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No audits planned yet. Click "Add Audit" to get started.</td></tr>';
+        if (filteredAudits.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No audits found matching filters.</td></tr>';
             return;
         }
 
-        tbody.innerHTML = audits.map(audit => {
+        tbody.innerHTML = filteredAudits.map(audit => {
             const entity = entities.find(e => e.id === audit.entityId);
             const quarter = quarters.find(q => q.id === audit.quarterId);
             const fy = quarter ? fiscalYears.find(f => f.id === quarter.fiscalYearId) : null;
@@ -1005,6 +1035,14 @@ class AppState {
                 <div class="stat-info">
                     <div class="stat-label">Current Quarter</div>
                     <div class="stat-value">${fiscalYear.year} ${quarter.name}</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📝</div>
+                <div class="stat-info">
+                    <div class="stat-label">Planned</div>
+                    <div class="stat-value">${quarterAudits.length}</div>
+                    <div class="stat-subtitle">Total audits planned</div>
                 </div>
             </div>
             <div class="stat-card">

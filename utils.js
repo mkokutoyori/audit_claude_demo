@@ -369,13 +369,16 @@ class DataExporter {
     // Export all data as JSON
     static async exportAllData(db) {
         const data = {
-            version: '1.0',
+            version: '2.0',
             exportDate: new Date().toISOString(),
             entities: await db.getAll('entities'),
             fiscalYears: await db.getAll('fiscalYears'),
             quarters: await db.getAll('quarters'),
             reports: await db.getAll('reports'),
-            exceptions: await db.getAll('exceptions')
+            exceptions: await db.getAll('exceptions'),
+            audits: await db.getAll('audits'),
+            comments: await db.getAll('comments'),
+            auditLog: await db.getAll('auditLog')
         };
 
         return JSON.stringify(data, null, 2);
@@ -386,14 +389,11 @@ class DataExporter {
         try {
             const data = JSON.parse(jsonString);
 
-            // Validate data structure
+            // Validate data structure (basic entities required)
             if (!data.entities || !data.fiscalYears || !data.quarters ||
                 !data.reports || !data.exceptions) {
-                throw new Error('Invalid data format');
+                throw new Error('Invalid data format - missing required fields');
             }
-
-            // Clear existing data (optional - could also merge)
-            // For now, we'll assume user wants to replace all data
 
             // Import entities
             for (const entity of data.entities) {
@@ -418,6 +418,27 @@ class DataExporter {
             // Import exceptions
             for (const exception of data.exceptions) {
                 await db.add('exceptions', exception);
+            }
+
+            // Import audits (optional, for v2.0+ exports)
+            if (data.audits && Array.isArray(data.audits)) {
+                for (const audit of data.audits) {
+                    await db.add('audits', audit);
+                }
+            }
+
+            // Import comments (optional, for v2.0+ exports)
+            if (data.comments && Array.isArray(data.comments)) {
+                for (const comment of data.comments) {
+                    await db.add('comments', comment);
+                }
+            }
+
+            // Import audit log (optional, for v2.0+ exports)
+            if (data.auditLog && Array.isArray(data.auditLog)) {
+                for (const logEntry of data.auditLog) {
+                    await db.add('auditLog', logEntry);
+                }
             }
 
             return true;

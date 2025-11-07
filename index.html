@@ -266,6 +266,19 @@
                 <!-- Current Quarter Info -->
                 <div id="current-quarter-info" class="stats-grid" style="margin-bottom: 2rem;"></div>
 
+                <!-- Filters -->
+                <div class="filters-bar" style="margin-bottom: 1.5rem;">
+                    <select id="audit-status-filter" class="filter-select">
+                        <option value="">All Status</option>
+                        <option value="not_started">Not Started</option>
+                        <option value="started">In Progress</option>
+                        <option value="closed">Closed</option>
+                    </select>
+                    <select id="audit-quarter-filter" class="filter-select">
+                        <option value="">All Quarters</option>
+                    </select>
+                </div>
+
                 <!-- Audits Table -->
                 <div class="table-container">
                     <table class="data-table">
