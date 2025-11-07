@@ -941,13 +941,18 @@ class AppState {
                 'closed': 'Closed'
             };
 
+            // Format auditors display
+            const auditorsDisplay = audit.auditors && audit.auditors.length > 0
+                ? audit.auditors.join(', ')
+                : '-';
+
             return `
                 <tr>
                     <td>${audit.title}</td>
                     <td>${entity?.name || 'N/A'}</td>
                     <td>${fy?.year || 'N/A'} ${quarter?.name || ''}</td>
                     <td><span class="status-badge ${statusColors[audit.status]}">${statusLabels[audit.status]}</span></td>
-                    <td>${audit.auditor || '-'}</td>
+                    <td>${auditorsDisplay}</td>
                     <td>${audit.start_date ? DateUtils.formatDate(audit.start_date) : '-'}</td>
                     <td>${audit.end_date ? DateUtils.formatDate(audit.end_date) : '-'}</td>
                     <td>
@@ -1081,7 +1086,7 @@ class AppState {
                 entityId: parseInt(document.getElementById('audit-entity').value),
                 quarterId: parseInt(document.getElementById('audit-quarter').value),
                 status: audit?.status || 'not_started',
-                auditor: audit?.auditor || null,
+                auditors: audit?.auditors || [],
                 start_date: audit?.start_date || null,
                 end_date: audit?.end_date || null,
                 duration_days: audit?.duration_days || null,
@@ -1114,8 +1119,9 @@ class AppState {
                     Starting audit: <strong>${audit.title}</strong>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Auditor *</label>
-                    <input type="text" class="form-input" id="auditor-name" required placeholder="Enter auditor's name">
+                    <label class="form-label">Auditors *</label>
+                    <input type="text" class="form-input" id="auditor-names" required placeholder="Enter auditor names (separate multiple with commas)">
+                    <small class="form-help">Example: John Doe, Jane Smith, Bob Johnson</small>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Start Date *</label>
@@ -1173,8 +1179,12 @@ class AppState {
             const duration = parseInt(document.getElementById('audit-duration').value);
             const endDate = DateUtils.addBusinessDays(startDate, duration - 1);
 
+            // Parse auditors from comma-separated input
+            const auditorsInput = document.getElementById('auditor-names').value;
+            const auditors = auditorsInput.split(',').map(name => name.trim()).filter(name => name);
+
             audit.status = 'started';
-            audit.auditor = document.getElementById('auditor-name').value;
+            audit.auditors = auditors;
             audit.start_date = startDate;
             audit.end_date = endDate;
             audit.duration_days = duration;
@@ -1257,6 +1267,11 @@ class AppState {
         const fy = fiscalYears.find(f => f.id === quarter.fiscalYearId);
         const report = audit.reportId ? await this.db.getById('reports', audit.reportId) : null;
 
+        // Format auditors display
+        const auditorsDisplay = audit.auditors && audit.auditors.length > 0
+            ? audit.auditors.join(', ')
+            : 'N/A';
+
         const body = `
             <div class="audit-details">
                 <div class="form-group">
@@ -1276,8 +1291,8 @@ class AppState {
                     <p><span class="status-badge status-closed">Closed</span></p>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">Auditor</label>
-                    <p>${audit.auditor}</p>
+                    <label class="form-label">Auditors</label>
+                    <p>${auditorsDisplay}</p>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Audit Dates</label>
