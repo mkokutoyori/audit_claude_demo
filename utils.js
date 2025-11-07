@@ -3,8 +3,25 @@
 // ==========================================
 
 class PaginationUtil {
-    static createPagination(items, currentPage, itemsPerPage = 20) {
+    static createPagination(items, currentPage, itemsPerPage = 10) {
         const totalItems = items.length;
+
+        // Handle "All" case
+        if (itemsPerPage === 'all' || itemsPerPage >= totalItems) {
+            return {
+                items: items,
+                currentPage: 1,
+                totalPages: 1,
+                totalItems,
+                itemsPerPage: totalItems,
+                startIndex: 0,
+                endIndex: totalItems,
+                hasPrevious: false,
+                hasNext: false,
+                showAll: true
+            };
+        }
+
         const totalPages = Math.ceil(totalItems / itemsPerPage);
         const startIndex = (currentPage - 1) * itemsPerPage;
         const endIndex = startIndex + itemsPerPage;
@@ -19,71 +36,88 @@ class PaginationUtil {
             startIndex,
             endIndex: Math.min(endIndex, totalItems),
             hasPrevious: currentPage > 1,
-            hasNext: currentPage < totalPages
+            hasNext: currentPage < totalPages,
+            showAll: false
         };
     }
 
     static renderPaginationControls(paginationInfo, tableName) {
-        if (paginationInfo.totalPages <= 1) {
-            return '';
-        }
-
-        const { currentPage, totalPages, totalItems, startIndex, endIndex } = paginationInfo;
+        const { currentPage, totalPages, totalItems, startIndex, endIndex, itemsPerPage, showAll } = paginationInfo;
 
         let html = `
             <div class="pagination-container">
-                <div class="pagination-info">
-                    Showing ${startIndex + 1}-${endIndex} of ${totalItems}
+                <div class="pagination-left">
+                    <div class="pagination-info">
+                        Showing ${startIndex + 1}-${endIndex} of ${totalItems}
+                    </div>
+                    <div class="pagination-items-selector">
+                        <label>Items per page:</label>
+                        <select class="items-per-page-select" onchange="app.changeItemsPerPage('${tableName}', this.value === 'all' ? 'all' : parseInt(this.value))">
+                            <option value="5" ${itemsPerPage === 5 ? 'selected' : ''}>5</option>
+                            <option value="10" ${itemsPerPage === 10 ? 'selected' : ''}>10</option>
+                            <option value="15" ${itemsPerPage === 15 ? 'selected' : ''}>15</option>
+                            <option value="25" ${itemsPerPage === 25 ? 'selected' : ''}>25</option>
+                            <option value="50" ${itemsPerPage === 50 ? 'selected' : ''}>50</option>
+                            <option value="all" ${showAll ? 'selected' : ''}>All</option>
+                        </select>
+                    </div>
                 </div>
+        `;
+
+        // Only show pagination controls if not showing all
+        if (!showAll && totalPages > 1) {
+            html += `
                 <div class="pagination-controls">
                     <button class="pagination-btn" ${!paginationInfo.hasPrevious ? 'disabled' : ''}
                             onclick="app.changePage('${tableName}', ${currentPage - 1})">
                         ← Previous
                     </button>
                     <span class="pagination-pages">
-        `;
-
-        // Show page numbers
-        const maxVisiblePages = 5;
-        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
-        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
-
-        if (endPage - startPage < maxVisiblePages - 1) {
-            startPage = Math.max(1, endPage - maxVisiblePages + 1);
-        }
-
-        if (startPage > 1) {
-            html += `<button class="pagination-number" onclick="app.changePage('${tableName}', 1)">1</button>`;
-            if (startPage > 2) {
-                html += `<span class="pagination-ellipsis">...</span>`;
-            }
-        }
-
-        for (let i = startPage; i <= endPage; i++) {
-            html += `
-                <button class="pagination-number ${i === currentPage ? 'active' : ''}"
-                        onclick="app.changePage('${tableName}', ${i})">
-                    ${i}
-                </button>
             `;
-        }
 
-        if (endPage < totalPages) {
-            if (endPage < totalPages - 1) {
-                html += `<span class="pagination-ellipsis">...</span>`;
+            // Show page numbers
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+            if (endPage - startPage < maxVisiblePages - 1) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
             }
-            html += `<button class="pagination-number" onclick="app.changePage('${tableName}', ${totalPages})">${totalPages}</button>`;
-        }
 
-        html += `
+            if (startPage > 1) {
+                html += `<button class="pagination-number" onclick="app.changePage('${tableName}', 1)">1</button>`;
+                if (startPage > 2) {
+                    html += `<span class="pagination-ellipsis">...</span>`;
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                html += `
+                    <button class="pagination-number ${i === currentPage ? 'active' : ''}"
+                            onclick="app.changePage('${tableName}', ${i})">
+                        ${i}
+                    </button>
+                `;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    html += `<span class="pagination-ellipsis">...</span>`;
+                }
+                html += `<button class="pagination-number" onclick="app.changePage('${tableName}', ${totalPages})">${totalPages}</button>`;
+            }
+
+            html += `
                     </span>
                     <button class="pagination-btn" ${!paginationInfo.hasNext ? 'disabled' : ''}
                             onclick="app.changePage('${tableName}', ${currentPage + 1})">
                         Next →
                     </button>
                 </div>
-            </div>
-        `;
+            `;
+        }
+
+        html += `</div>`;
 
         return html;
     }

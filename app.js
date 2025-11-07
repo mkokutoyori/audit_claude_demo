@@ -272,11 +272,11 @@ class AppState {
             sqlQueries: { search: '' }
         };
         this.pagination = {
-            exceptions: { currentPage: 1, itemsPerPage: 20 },
-            reports: { currentPage: 1, itemsPerPage: 20 },
-            entities: { currentPage: 1, itemsPerPage: 20 },
-            audits: { currentPage: 1, itemsPerPage: 20 },
-            sqlQueries: { currentPage: 1, itemsPerPage: 20 }
+            exceptions: { currentPage: 1, itemsPerPage: 10 },
+            reports: { currentPage: 1, itemsPerPage: 10 },
+            entities: { currentPage: 1, itemsPerPage: 10 },
+            audits: { currentPage: 1, itemsPerPage: 10 },
+            sqlQueries: { currentPage: 1, itemsPerPage: 10 }
         };
     }
 
@@ -527,6 +527,32 @@ class AppState {
     changePage(tableName, pageNumber) {
         if (this.pagination[tableName]) {
             this.pagination[tableName].currentPage = pageNumber;
+
+            // Re-render the appropriate table
+            switch(tableName) {
+                case 'exceptions':
+                    this.renderExceptions();
+                    break;
+                case 'reports':
+                    this.renderReports();
+                    break;
+                case 'entities':
+                    this.renderEntities();
+                    break;
+                case 'audits':
+                    this.renderAuditPlanning();
+                    break;
+                case 'sqlQueries':
+                    this.renderSqlQueries();
+                    break;
+            }
+        }
+    }
+
+    changeItemsPerPage(tableName, itemsPerPage) {
+        if (this.pagination[tableName]) {
+            this.pagination[tableName].itemsPerPage = itemsPerPage;
+            this.pagination[tableName].currentPage = 1; // Reset to first page
 
             // Re-render the appropriate table
             switch(tableName) {
