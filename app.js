@@ -5,7 +5,7 @@
 class Database {
     constructor() {
         this.dbName = 'AuditExceptionDB';
-        this.version = 4;
+        this.version = 5;
         this.db = null;
     }
 
@@ -59,6 +59,42 @@ class Database {
                     exceptionStore.createIndex('reportId', 'reportId', { unique: false });
                     exceptionStore.createIndex('status', 'status', { unique: false });
                     exceptionStore.createIndex('risk_rating', 'risk_rating', { unique: false });
+                }
+
+                // Version 5 upgrades
+                if (event.oldVersion < 5) {
+                    // Comments Store
+                    if (!db.objectStoreNames.contains('comments')) {
+                        const commentStore = db.createObjectStore('comments', { keyPath: 'id', autoIncrement: true });
+                        commentStore.createIndex('exceptionId', 'exceptionId', { unique: false });
+                        commentStore.createIndex('timestamp', 'timestamp', { unique: false });
+                    }
+
+                    // Audit Log Store
+                    if (!db.objectStoreNames.contains('auditLog')) {
+                        const logStore = db.createObjectStore('auditLog', { keyPath: 'id', autoIncrement: true });
+                        logStore.createIndex('entityType', 'entityType', { unique: false });
+                        logStore.createIndex('entityId', 'entityId', { unique: false });
+                        logStore.createIndex('timestamp', 'timestamp', { unique: false });
+                    }
+
+                    // Add tags and private_notes to existing exceptions
+                    const transaction = event.target.transaction;
+                    if (db.objectStoreNames.contains('exceptions')) {
+                        const exceptionStore = transaction.objectStore('exceptions');
+                        const request = exceptionStore.openCursor();
+
+                        request.onsuccess = (e) => {
+                            const cursor = e.target.result;
+                            if (cursor) {
+                                const exception = cursor.value;
+                                if (!exception.tags) exception.tags = [];
+                                if (!exception.private_notes) exception.private_notes = '';
+                                cursor.update(exception);
+                                cursor.continue();
+                            }
+                        };
+                    }
                 }
             };
         });
@@ -123,6 +159,60 @@ class Database {
             request.onsuccess = () => resolve(request.result);
             request.onerror = () => reject(request.error);
         });
+    }
+
+    // ==========================================
+    // Audit Log Methods
+    // ==========================================
+
+    async logChange(entityType, entityId, action, changes, userId = 'auditor') {
+        const logEntry = {
+            entityType,    // 'exception', 'report', 'entity', etc.
+            entityId,      // ID of the entity that was changed
+            action,        // 'create', 'update', 'delete'
+            changes,       // Object describing what changed
+            userId,        // Who made the change
+            timestamp: new Date().toISOString()
+        };
+        return this.add('auditLog', logEntry);
+    }
+
+    async getAuditLog(entityType = null, entityId = null) {
+        const allLogs = await this.getAll('auditLog');
+
+        if (!entityType && !entityId) {
+            return allLogs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+        }
+
+        return allLogs.filter(log => {
+            if (entityType && log.entityType !== entityType) return false;
+            if (entityId && log.entityId !== entityId) return false;
+            return true;
+        }).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    }
+
+    // ==========================================
+    // Comments Methods
+    // ==========================================
+
+    async addComment(exceptionId, text, author = 'Auditor', isInternal = false) {
+        const comment = {
+            exceptionId,
+            text,
+            author,
+            isInternal,    // true = internal note, false = visible to manager
+            timestamp: new Date().toISOString()
+        };
+        return this.add('comments', comment);
+    }
+
+    async getComments(exceptionId) {
+        const comments = await this.getByIndex('comments', 'exceptionId', exceptionId);
+        return comments.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+    }
+
+    async deleteComment(commentId) {
+        return this.delete('comments', commentId);
     }
 
     async resetDatabase() {
@@ -1452,6 +1542,16 @@ class AppState {
                     <label class="form-label">Target Date</label>
                     <input type="date" class="form-input" id="exception-target-date" value="${exception?.target_date || ''}">
                 </div>
+                <div class="form-group">
+                    <label class="form-label">Tags</label>
+                    <input type="text" class="form-input" id="exception-tags" value="${(exception?.tags || []).join(', ')}" placeholder="Enter tags separated by commas (e.g., High Priority, Legal, IT)">
+                    <small class="form-help">Separate tags with commas</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Private Notes (Auditors Only)</label>
+                    <textarea class="form-textarea" id="exception-private-notes" placeholder="Internal notes not visible to management">${exception?.private_notes || ''}</textarea>
+                    <small class="form-help">These notes are only visible to auditors and will not be included in reports or emails</small>
+                </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Save</button>
@@ -1464,6 +1564,10 @@ class AppState {
         document.getElementById('exception-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
+            // Parse tags from comma-separated string
+            const tagsInput = document.getElementById('exception-tags').value;
+            const tags = tagsInput ? tagsInput.split(',').map(t => t.trim()).filter(t => t) : [];
+
             const data = {
                 reportId: parseInt(document.getElementById('exception-report').value),
                 title: document.getElementById('exception-title').value,
@@ -1475,6 +1579,8 @@ class AppState {
                 action_plan: document.getElementById('exception-action-plan').value,
                 root_cause: document.getElementById('exception-root-cause').value,
                 target_date: document.getElementById('exception-target-date').value,
+                tags: tags,
+                private_notes: document.getElementById('exception-private-notes').value,
                 status: exception?.status || 'open',
                 created_date: exception?.created_date || new Date().toISOString().split('T')[0]
             };
@@ -1483,9 +1589,22 @@ class AppState {
                 data.id = exception.id;
                 data.closure_date = exception.closure_date;
                 data.closure_comments = exception.closure_comments;
+
+                // Log the changes
+                const changes = {};
+                if (exception.title !== data.title) changes.title = { from: exception.title, to: data.title };
+                if (exception.risk_rating !== data.risk_rating) changes.risk_rating = { from: exception.risk_rating, to: data.risk_rating };
+                if (exception.target_date !== data.target_date) changes.target_date = { from: exception.target_date, to: data.target_date };
+                if (JSON.stringify(exception.tags || []) !== JSON.stringify(tags)) changes.tags = { from: exception.tags || [], to: tags };
+
+                if (Object.keys(changes).length > 0) {
+                    await this.db.logChange('exception', exception.id, 'update', changes);
+                }
+
                 await this.db.update('exceptions', data);
             } else {
-                await this.db.add('exceptions', data);
+                const newId = await this.db.add('exceptions', data);
+                await this.db.logChange('exception', newId, 'create', { title: data.title, risk_rating: data.risk_rating });
             }
 
             this.closeModal();
@@ -1500,9 +1619,93 @@ class AppState {
         const exception = await this.db.getById('exceptions', id);
         const report = await this.db.getById('reports', exception.reportId);
         const entity = await this.db.getById('entities', report.entityId);
+        const comments = await this.db.getComments(id);
+
+        // Calculate days remaining
+        let daysRemainingHtml = '';
+        if (exception.target_date && exception.status !== 'closed') {
+            const target = new Date(exception.target_date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const daysRemaining = DateUtils.daysBetween(today, target);
+
+            let colorClass = 'success';
+            let statusText = '';
+            if (daysRemaining < 0) {
+                colorClass = 'danger';
+                statusText = `Overdue by ${Math.abs(daysRemaining)} days`;
+            } else if (daysRemaining === 0) {
+                colorClass = 'warning';
+                statusText = 'Due today';
+            } else if (daysRemaining <= 7) {
+                colorClass = 'warning';
+                statusText = `${daysRemaining} days remaining`;
+            } else {
+                statusText = `${daysRemaining} days remaining`;
+            }
+
+            daysRemainingHtml = `
+                <div class="days-remaining-banner days-remaining-${colorClass}">
+                    ${statusText}
+                </div>
+            `;
+        }
+
+        // Tags display
+        const tags = exception.tags || [];
+        const tagsHtml = tags.length > 0 ? `
+            <div class="form-group">
+                <label class="form-label">Tags</label>
+                <div class="tags-display">
+                    ${tags.map(tag => `<span class="tag-badge">${tag}</span>`).join('')}
+                </div>
+            </div>
+        ` : '';
+
+        // Private notes
+        const privateNotesHtml = `
+            <div class="form-group private-notes-section">
+                <label class="form-label">Private Notes (Auditors Only)</label>
+                <p class="private-notes-text">${exception.private_notes || '<em>No private notes</em>'}</p>
+            </div>
+        `;
+
+        // Comments section
+        const commentsHtml = `
+            <div class="comments-section">
+                <h3 class="comments-title">Comments & Timeline</h3>
+                <div class="comments-list" id="comments-list-${id}">
+                    ${comments.length === 0 ? '<p class="no-comments">No comments yet</p>' : ''}
+                    ${comments.map(comment => `
+                        <div class="comment ${comment.isInternal ? 'comment-internal' : 'comment-public'}">
+                            <div class="comment-header">
+                                <strong>${comment.author}</strong>
+                                <span class="comment-type">${comment.isInternal ? '(Internal)' : '(Manager Response)'}</span>
+                                <span class="comment-date">${new Date(comment.timestamp).toLocaleString()}</span>
+                            </div>
+                            <div class="comment-body">${comment.text}</div>
+                            <button class="btn btn-sm btn-danger" onclick="app.deleteCommentFromView(${comment.id}, ${id})">Delete</button>
+                        </div>
+                    `).join('')}
+                </div>
+                <div class="add-comment-form">
+                    <h4>Add Comment</h4>
+                    <textarea class="form-textarea" id="new-comment-text-${id}" placeholder="Type your comment here..."></textarea>
+                    <div class="comment-form-actions">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="comment-internal-${id}">
+                            Internal Note (not visible to manager)
+                        </label>
+                        <input type="text" class="form-input" id="comment-author-${id}" placeholder="Your name" value="Auditor">
+                        <button class="btn btn-primary" onclick="app.addCommentToException(${id})">Add Comment</button>
+                    </div>
+                </div>
+            </div>
+        `;
 
         const body = `
             <div class="exception-details">
+                ${daysRemainingHtml}
                 <div class="form-group">
                     <label class="form-label">Title</label>
                     <p>${exception.title}</p>
@@ -1523,6 +1726,7 @@ class AppState {
                     <label class="form-label">Risk Rating</label>
                     <p><span class="status-badge risk-${exception.risk_rating}">${exception.risk_rating}</span></p>
                 </div>
+                ${tagsHtml}
                 <div class="form-group">
                     <label class="form-label">Description</label>
                     <p>${exception.description}</p>
@@ -1555,18 +1759,20 @@ class AppState {
                 ` : ''}
                 <div class="form-group">
                     <label class="form-label">Target Date</label>
-                    <p>${exception.target_date || 'Not set'}</p>
+                    <p>${exception.target_date ? DateUtils.formatDate(exception.target_date) : 'Not set'}</p>
                 </div>
                 ${exception.status === 'closed' ? `
                 <div class="form-group">
                     <label class="form-label">Closure Date</label>
-                    <p>${exception.closure_date}</p>
+                    <p>${DateUtils.formatDate(exception.closure_date)}</p>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Closure Comments</label>
                     <p>${exception.closure_comments}</p>
                 </div>
                 ` : ''}
+                ${privateNotesHtml}
+                ${commentsHtml}
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Close</button>
                     <button type="button" class="btn btn-primary" onclick="app.closeModal(); app.showExceptionForm(${JSON.stringify(exception).replace(/"/g, '&quot;')})">Edit</button>
@@ -1631,6 +1837,47 @@ class AppState {
             if (this.currentView === 'dashboard') {
                 this.renderDashboard();
             }
+        }
+    }
+
+    async addCommentToException(exceptionId) {
+        const text = document.getElementById(`new-comment-text-${exceptionId}`).value.trim();
+        const author = document.getElementById(`comment-author-${exceptionId}`).value.trim() || 'Auditor';
+        const isInternal = document.getElementById(`comment-internal-${exceptionId}`).checked;
+
+        if (!text) {
+            NotificationUtil.show('Please enter a comment', 'error');
+            return;
+        }
+
+        await this.db.addComment(exceptionId, text, author, isInternal);
+
+        // Log the change
+        await this.db.logChange('exception', exceptionId, 'comment_added', {
+            author,
+            isInternal,
+            commentText: text.substring(0, 50) + '...'
+        });
+
+        NotificationUtil.show('Comment added successfully', 'success');
+
+        // Refresh the view
+        this.viewException(exceptionId);
+    }
+
+    async deleteCommentFromView(commentId, exceptionId) {
+        if (confirm('Are you sure you want to delete this comment?')) {
+            await this.db.deleteComment(commentId);
+
+            // Log the change
+            await this.db.logChange('exception', exceptionId, 'comment_deleted', {
+                commentId
+            });
+
+            NotificationUtil.show('Comment deleted', 'success');
+
+            // Refresh the view
+            this.viewException(exceptionId);
         }
     }
 
@@ -1822,6 +2069,14 @@ class AppState {
             case 'view-fiscal-year-closure':
                 title = 'Fiscal Year Closure Statistics';
                 await this.renderFiscalYearClosure(container);
+                break;
+            case 'view-trend-analysis':
+                title = 'Trend Analysis';
+                await this.renderTrendAnalysis(container);
+                break;
+            case 'view-audit-trail':
+                title = 'Audit Trail';
+                await this.renderAuditTrail(container);
                 break;
         }
 
@@ -2511,6 +2766,358 @@ class AppState {
         `;
 
         document.getElementById('closure-stats-result').innerHTML = html;
+    }
+
+    async renderTrendAnalysis(container) {
+        const exceptions = await this.db.getAll('exceptions');
+
+        if (exceptions.length === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📊</div><p>No exceptions data available for trend analysis</p></div>';
+            return;
+        }
+
+        let html = `
+            <h2 class="mb-3">Trend Analysis</h2>
+            <div class="trends-container">
+                <div class="trend-section">
+                    <h3>Exceptions Over Time</h3>
+                    <canvas id="trend-exceptions-timeline"></canvas>
+                </div>
+                <div class="trend-section">
+                    <h3>Open vs Closed Trend</h3>
+                    <canvas id="trend-open-closed"></canvas>
+                </div>
+                <div class="trend-section">
+                    <h3>Average Resolution Time by Risk Rating</h3>
+                    <canvas id="trend-resolution-time"></canvas>
+                </div>
+                <div class="trend-section">
+                    <h3>Monthly Exception Velocity</h3>
+                    <canvas id="trend-velocity"></canvas>
+                </div>
+            </div>
+        `;
+
+        container.innerHTML = html;
+
+        // Render all trend charts
+        await this.renderExceptionsTimelineChart(exceptions);
+        await this.renderOpenClosedTrendChart(exceptions);
+        await this.renderResolutionTimeChart(exceptions);
+        await this.renderVelocityChart(exceptions);
+    }
+
+    async renderExceptionsTimelineChart(exceptions) {
+        // Group exceptions by month
+        const monthlyData = {};
+        exceptions.forEach(ex => {
+            if (ex.created_date) {
+                const date = new Date(ex.created_date);
+                const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                if (!monthlyData[key]) {
+                    monthlyData[key] = { created: 0, closed: 0 };
+                }
+                monthlyData[key].created++;
+                if (ex.status === 'closed' && ex.closure_date) {
+                    const closureDate = new Date(ex.closure_date);
+                    const closureKey = `${closureDate.getFullYear()}-${String(closureDate.getMonth() + 1).padStart(2, '0')}`;
+                    if (!monthlyData[closureKey]) {
+                        monthlyData[closureKey] = { created: 0, closed: 0 };
+                    }
+                    monthlyData[closureKey].closed++;
+                }
+            }
+        });
+
+        const sortedKeys = Object.keys(monthlyData).sort();
+        const labels = sortedKeys.map(key => {
+            const [year, month] = key.split('-');
+            return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(month) - 1]} ${year}`;
+        });
+        const createdData = sortedKeys.map(key => monthlyData[key].created);
+        const closedData = sortedKeys.map(key => monthlyData[key].closed);
+
+        const ctx = document.getElementById('trend-exceptions-timeline');
+        if (this.charts['trend-exceptions-timeline']) {
+            this.charts['trend-exceptions-timeline'].destroy();
+        }
+
+        this.charts['trend-exceptions-timeline'] = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Exceptions Created',
+                        data: createdData,
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Exceptions Closed',
+                        data: closedData,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'top'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    async renderOpenClosedTrendChart(exceptions) {
+        // Calculate cumulative open/closed over time
+        const sortedExceptions = [...exceptions].sort((a, b) =>
+            new Date(a.created_date) - new Date(b.created_date)
+        );
+
+        const dataPoints = [];
+        let cumulativeOpen = 0;
+        let cumulativeClosed = 0;
+
+        sortedExceptions.forEach(ex => {
+            cumulativeOpen++;
+            if (ex.status === 'closed') {
+                cumulativeClosed++;
+            }
+            dataPoints.push({
+                date: ex.created_date,
+                open: cumulativeOpen - cumulativeClosed,
+                closed: cumulativeClosed
+            });
+        });
+
+        const labels = dataPoints.map((dp, idx) => idx % 5 === 0 ? DateUtils.formatDate(dp.date) : '');
+        const openData = dataPoints.map(dp => dp.open);
+        const closedData = dataPoints.map(dp => dp.closed);
+
+        const ctx = document.getElementById('trend-open-closed');
+        if (this.charts['trend-open-closed']) {
+            this.charts['trend-open-closed'].destroy();
+        }
+
+        this.charts['trend-open-closed'] = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Currently Open',
+                        data: openData,
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        fill: true
+                    },
+                    {
+                        label: 'Total Closed',
+                        data: closedData,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        position: 'top'
+                    }
+                }
+            }
+        });
+    }
+
+    async renderResolutionTimeChart(exceptions) {
+        const closedExceptions = exceptions.filter(ex => ex.status === 'closed' && ex.closure_date && ex.created_date);
+
+        const resolutionByRisk = {
+            exposure: [],
+            concern: [],
+            housekeeping: [],
+            observation: []
+        };
+
+        closedExceptions.forEach(ex => {
+            const created = new Date(ex.created_date);
+            const closed = new Date(ex.closure_date);
+            const daysToResolve = Math.ceil((closed - created) / (1000 * 60 * 60 * 24));
+            if (resolutionByRisk[ex.risk_rating]) {
+                resolutionByRisk[ex.risk_rating].push(daysToResolve);
+            }
+        });
+
+        const avgResolution = {
+            exposure: resolutionByRisk.exposure.length > 0
+                ? resolutionByRisk.exposure.reduce((a, b) => a + b, 0) / resolutionByRisk.exposure.length
+                : 0,
+            concern: resolutionByRisk.concern.length > 0
+                ? resolutionByRisk.concern.reduce((a, b) => a + b, 0) / resolutionByRisk.concern.length
+                : 0,
+            housekeeping: resolutionByRisk.housekeeping.length > 0
+                ? resolutionByRisk.housekeeping.reduce((a, b) => a + b, 0) / resolutionByRisk.housekeeping.length
+                : 0,
+            observation: resolutionByRisk.observation.length > 0
+                ? resolutionByRisk.observation.reduce((a, b) => a + b, 0) / resolutionByRisk.observation.length
+                : 0
+        };
+
+        const ctx = document.getElementById('trend-resolution-time');
+        if (this.charts['trend-resolution-time']) {
+            this.charts['trend-resolution-time'].destroy();
+        }
+
+        this.charts['trend-resolution-time'] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: ['Exposure', 'Concern', 'Housekeeping', 'Observation'],
+                datasets: [{
+                    label: 'Average Days to Resolve',
+                    data: [
+                        Math.round(avgResolution.exposure),
+                        Math.round(avgResolution.concern),
+                        Math.round(avgResolution.housekeeping),
+                        Math.round(avgResolution.observation)
+                    ],
+                    backgroundColor: ['#ef4444', '#f59e0b', '#3b82f6', '#10b981']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Days'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    async renderVelocityChart(exceptions) {
+        // Calculate monthly velocity (exceptions created per month)
+        const monthlyVelocity = {};
+
+        exceptions.forEach(ex => {
+            if (ex.created_date) {
+                const date = new Date(ex.created_date);
+                const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+                monthlyVelocity[key] = (monthlyVelocity[key] || 0) + 1;
+            }
+        });
+
+        const sortedKeys = Object.keys(monthlyVelocity).sort();
+        const labels = sortedKeys.map(key => {
+            const [year, month] = key.split('-');
+            return `${['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][parseInt(month) - 1]} ${year}`;
+        });
+        const data = sortedKeys.map(key => monthlyVelocity[key]);
+
+        const ctx = document.getElementById('trend-velocity');
+        if (this.charts['trend-velocity']) {
+            this.charts['trend-velocity'].destroy();
+        }
+
+        this.charts['trend-velocity'] = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Exceptions Created',
+                    data: data,
+                    backgroundColor: '#3b82f6'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Count'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    async renderAuditTrail(container) {
+        const auditLogs = await this.db.getAuditLog();
+
+        let html = `
+            <h2 class="mb-3">Audit Trail</h2>
+            <p class="subtitle">Complete history of all changes and modifications</p>
+        `;
+
+        if (auditLogs.length === 0) {
+            html += '<div class="empty-state"><div class="empty-state-icon">📜</div><p>No audit log entries yet</p></div>';
+        } else {
+            html += '<div class="audit-trail-list">';
+
+            auditLogs.forEach(log => {
+                const timestamp = new Date(log.timestamp).toLocaleString();
+                const actionColors = {
+                    create: '#10b981',
+                    update: '#3b82f6',
+                    delete: '#ef4444',
+                    comment_added: '#8b5cf6',
+                    comment_deleted: '#f59e0b'
+                };
+                const actionColor = actionColors[log.action] || '#64748b';
+
+                html += `
+                    <div class="audit-log-entry" style="border-left: 4px solid ${actionColor};">
+                        <div class="audit-header">
+                            <span class="audit-action" style="background-color: ${actionColor};">${log.action.toUpperCase()}</span>
+                            <span class="audit-type">${log.entityType}</span>
+                            <span class="audit-id">ID: ${log.entityId}</span>
+                            <span class="audit-user">${log.userId}</span>
+                            <span class="audit-timestamp">${timestamp}</span>
+                        </div>
+                        <div class="audit-changes">
+                            <pre>${JSON.stringify(log.changes, null, 2)}</pre>
+                        </div>
+                    </div>
+                `;
+            });
+
+            html += '</div>';
+        }
+
+        container.innerHTML = html;
     }
 
     // ==========================================
