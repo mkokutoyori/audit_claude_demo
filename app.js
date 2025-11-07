@@ -255,10 +255,16 @@ class AppState {
         this.currentView = 'dashboard';
         this.charts = {};
         this.filters = {
-            exceptions: { search: '', status: '', risk: '', entity: '' },
+            exceptions: { search: '', status: '', risk: '', entity: '', quarter: '' },
             reports: { search: '', entity: '', year: '' },
             entities: { search: '' },
             audits: { status: '', quarter: '' }
+        };
+        this.pagination = {
+            exceptions: { currentPage: 1, itemsPerPage: 20 },
+            reports: { currentPage: 1, itemsPerPage: 20 },
+            entities: { currentPage: 1, itemsPerPage: 20 },
+            audits: { currentPage: 1, itemsPerPage: 20 }
         };
     }
 
@@ -398,6 +404,12 @@ class AppState {
         });
         document.getElementById('exception-entity-filter').addEventListener('change', (e) => {
             this.filters.exceptions.entity = e.target.value;
+            this.pagination.exceptions.currentPage = 1; // Reset to first page
+            this.renderExceptions();
+        });
+        document.getElementById('exception-quarter-filter').addEventListener('change', (e) => {
+            this.filters.exceptions.quarter = e.target.value;
+            this.pagination.exceptions.currentPage = 1; // Reset to first page
             this.renderExceptions();
         });
 
@@ -486,6 +498,29 @@ class AppState {
     // Navigate to a specific view (alias for switchView)
     navigateTo(view) {
         this.switchView(view);
+    }
+
+    // Change page for pagination
+    changePage(tableName, pageNumber) {
+        if (this.pagination[tableName]) {
+            this.pagination[tableName].currentPage = pageNumber;
+
+            // Re-render the appropriate table
+            switch(tableName) {
+                case 'exceptions':
+                    this.renderExceptions();
+                    break;
+                case 'reports':
+                    this.renderReports();
+                    break;
+                case 'entities':
+                    this.renderEntities();
+                    break;
+                case 'audits':
+                    this.renderAuditPlanning();
+                    break;
+            }
+        }
     }
 
     // ==========================================
@@ -712,6 +747,13 @@ class AppState {
             );
         }
 
+        // Apply pagination
+        const paginationInfo = PaginationUtil.createPagination(
+            filteredEntities,
+            this.pagination.entities.currentPage,
+            this.pagination.entities.itemsPerPage
+        );
+
         if (filteredEntities.length === 0) {
             tbody.innerHTML = `
                 <tr>
@@ -723,10 +765,14 @@ class AppState {
                     </td>
                 </tr>
             `;
+            // Clear pagination
+            const paginationContainer = tbody.closest('.table-container');
+            const existingPagination = paginationContainer.querySelector('.pagination-container');
+            if (existingPagination) existingPagination.remove();
             return;
         }
 
-        tbody.innerHTML = filteredEntities.map(entity => `
+        tbody.innerHTML = paginationInfo.items.map(entity => `
             <tr>
                 <td>${entity.name}</td>
                 <td>${entity.manager}</td>
@@ -738,6 +784,16 @@ class AppState {
                 </td>
             </tr>
         `).join('');
+
+        // Add pagination controls
+        const paginationContainer = tbody.closest('.table-container');
+        const existingPagination = paginationContainer.querySelector('.pagination-container');
+        if (existingPagination) existingPagination.remove();
+
+        const paginationHtml = PaginationUtil.renderPaginationControls(paginationInfo, 'entities');
+        if (paginationHtml) {
+            paginationContainer.insertAdjacentHTML('beforeend', paginationHtml);
+        }
     }
 
     showEntityForm(entity = null) {
@@ -945,16 +1001,27 @@ class AppState {
             filteredAudits = filteredAudits.filter(a => a.quarterId === parseInt(this.filters.audits.quarter));
         }
 
+        // Apply pagination
+        const paginationInfo = PaginationUtil.createPagination(
+            filteredAudits,
+            this.pagination.audits.currentPage,
+            this.pagination.audits.itemsPerPage
+        );
+
         // Get current quarter info
         const currentQuarterInfo = DateUtils.getCurrentQuarter(fiscalYears, quarters);
         this.renderCurrentQuarterInfo(currentQuarterInfo, audits);
 
         if (filteredAudits.length === 0) {
             tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No audits found matching filters.</td></tr>';
+            // Clear pagination
+            const paginationContainer = tbody.closest('.table-container');
+            const existingPagination = paginationContainer.querySelector('.pagination-container');
+            if (existingPagination) existingPagination.remove();
             return;
         }
 
-        tbody.innerHTML = filteredAudits.map(audit => {
+        tbody.innerHTML = paginationInfo.items.map(audit => {
             const entity = entities.find(e => e.id === audit.entityId);
             const quarter = quarters.find(q => q.id === audit.quarterId);
             const fy = quarter ? fiscalYears.find(f => f.id === quarter.fiscalYearId) : null;
@@ -1008,6 +1075,16 @@ class AppState {
                 </tr>
             `;
         }).join('');
+
+        // Add pagination controls
+        const paginationContainer = tbody.closest('.table-container');
+        const existingPagination = paginationContainer.querySelector('.pagination-container');
+        if (existingPagination) existingPagination.remove();
+
+        const paginationHtml = PaginationUtil.renderPaginationControls(paginationInfo, 'audits');
+        if (paginationHtml) {
+            paginationContainer.insertAdjacentHTML('beforeend', paginationHtml);
+        }
     }
 
     renderCurrentQuarterInfo(currentQuarterInfo, audits) {
@@ -1389,6 +1466,13 @@ class AppState {
             );
         }
 
+        // Apply pagination
+        const paginationInfo = PaginationUtil.createPagination(
+            filteredReports,
+            this.pagination.reports.currentPage,
+            this.pagination.reports.itemsPerPage
+        );
+
         if (filteredReports.length === 0) {
             tbody.innerHTML = `
                 <tr>
@@ -1400,10 +1484,14 @@ class AppState {
                     </td>
                 </tr>
             `;
+            // Clear pagination
+            const paginationContainer = tbody.closest('.table-container');
+            const existingPagination = paginationContainer.querySelector('.pagination-container');
+            if (existingPagination) existingPagination.remove();
             return;
         }
 
-        tbody.innerHTML = filteredReports.map(report => {
+        tbody.innerHTML = paginationInfo.items.map(report => {
             const entity = entities.find(e => e.id === report.entityId);
             const quarter = quarters.find(q => q.id === report.quarterId);
             const fy = fiscalYears.find(f => f.id === quarter?.fiscalYearId);
@@ -1434,6 +1522,16 @@ class AppState {
                 </tr>
             `;
         }).join('');
+
+        // Add pagination controls
+        const paginationContainer = tbody.closest('.table-container');
+        const existingPagination = paginationContainer.querySelector('.pagination-container');
+        if (existingPagination) existingPagination.remove();
+
+        const paginationHtml = PaginationUtil.renderPaginationControls(paginationInfo, 'reports');
+        if (paginationHtml) {
+            paginationContainer.insertAdjacentHTML('beforeend', paginationHtml);
+        }
     }
 
     async showReportForm(report = null) {
@@ -1875,7 +1973,19 @@ class AppState {
         const exceptions = await this.db.getAll('exceptions');
         const reports = await this.db.getAll('reports');
         const entities = await this.db.getAll('entities');
+        const quarters = await this.db.getAll('quarters');
+        const fiscalYears = await this.db.getAll('fiscalYears');
         const tbody = document.getElementById('exceptions-table-body');
+
+        // Populate quarter filter dropdown
+        const quarterFilter = document.getElementById('exception-quarter-filter');
+        const currentQuarterFilterValue = quarterFilter.value;
+        quarterFilter.innerHTML = '<option value="">All Quarters</option>' +
+            quarters.map(q => {
+                const fy = fiscalYears.find(f => f.id === q.fiscalYearId);
+                return `<option value="${q.id}">${fy?.year} ${q.name}</option>`;
+            }).join('');
+        quarterFilter.value = currentQuarterFilterValue;
 
         let filteredExceptions = exceptions;
 
@@ -1911,6 +2021,21 @@ class AppState {
                 entityReports.includes(ex.reportId)
             );
         }
+        if (this.filters.exceptions.quarter) {
+            const quarterReports = reports.filter(r =>
+                r.quarterId === parseInt(this.filters.exceptions.quarter)
+            ).map(r => r.id);
+            filteredExceptions = filteredExceptions.filter(ex =>
+                quarterReports.includes(ex.reportId)
+            );
+        }
+
+        // Apply pagination
+        const paginationInfo = PaginationUtil.createPagination(
+            filteredExceptions,
+            this.pagination.exceptions.currentPage,
+            this.pagination.exceptions.itemsPerPage
+        );
 
         if (filteredExceptions.length === 0) {
             tbody.innerHTML = `
@@ -1923,10 +2048,14 @@ class AppState {
                     </td>
                 </tr>
             `;
+            // Clear pagination
+            const paginationContainer = tbody.closest('.table-container');
+            const existingPagination = paginationContainer.querySelector('.pagination-container');
+            if (existingPagination) existingPagination.remove();
             return;
         }
 
-        tbody.innerHTML = filteredExceptions.map(exception => {
+        tbody.innerHTML = paginationInfo.items.map(exception => {
             const report = reports.find(r => r.id === exception.reportId);
             const entity = entities.find(e => e.id === report?.entityId);
             const isOveraged = exception.status === 'open' && DateUtils.isOveraged(exception.target_date);
@@ -1958,6 +2087,16 @@ class AppState {
                 </tr>
             `;
         }).join('');
+
+        // Add pagination controls
+        const paginationContainer = tbody.closest('.table-container');
+        const existingPagination = paginationContainer.querySelector('.pagination-container');
+        if (existingPagination) existingPagination.remove();
+
+        const paginationHtml = PaginationUtil.renderPaginationControls(paginationInfo, 'exceptions');
+        if (paginationHtml) {
+            paginationContainer.insertAdjacentHTML('beforeend', paginationHtml);
+        }
     }
 
     async showExceptionForm(exception = null) {

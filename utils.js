@@ -2,6 +2,93 @@
 // Utility Functions
 // ==========================================
 
+class PaginationUtil {
+    static createPagination(items, currentPage, itemsPerPage = 20) {
+        const totalItems = items.length;
+        const totalPages = Math.ceil(totalItems / itemsPerPage);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = startIndex + itemsPerPage;
+        const paginatedItems = items.slice(startIndex, endIndex);
+
+        return {
+            items: paginatedItems,
+            currentPage,
+            totalPages,
+            totalItems,
+            itemsPerPage,
+            startIndex,
+            endIndex: Math.min(endIndex, totalItems),
+            hasPrevious: currentPage > 1,
+            hasNext: currentPage < totalPages
+        };
+    }
+
+    static renderPaginationControls(paginationInfo, tableName) {
+        if (paginationInfo.totalPages <= 1) {
+            return '';
+        }
+
+        const { currentPage, totalPages, totalItems, startIndex, endIndex } = paginationInfo;
+
+        let html = `
+            <div class="pagination-container">
+                <div class="pagination-info">
+                    Showing ${startIndex + 1}-${endIndex} of ${totalItems}
+                </div>
+                <div class="pagination-controls">
+                    <button class="pagination-btn" ${!paginationInfo.hasPrevious ? 'disabled' : ''}
+                            onclick="app.changePage('${tableName}', ${currentPage - 1})">
+                        ← Previous
+                    </button>
+                    <span class="pagination-pages">
+        `;
+
+        // Show page numbers
+        const maxVisiblePages = 5;
+        let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+        let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+        if (endPage - startPage < maxVisiblePages - 1) {
+            startPage = Math.max(1, endPage - maxVisiblePages + 1);
+        }
+
+        if (startPage > 1) {
+            html += `<button class="pagination-number" onclick="app.changePage('${tableName}', 1)">1</button>`;
+            if (startPage > 2) {
+                html += `<span class="pagination-ellipsis">...</span>`;
+            }
+        }
+
+        for (let i = startPage; i <= endPage; i++) {
+            html += `
+                <button class="pagination-number ${i === currentPage ? 'active' : ''}"
+                        onclick="app.changePage('${tableName}', ${i})">
+                    ${i}
+                </button>
+            `;
+        }
+
+        if (endPage < totalPages) {
+            if (endPage < totalPages - 1) {
+                html += `<span class="pagination-ellipsis">...</span>`;
+            }
+            html += `<button class="pagination-number" onclick="app.changePage('${tableName}', ${totalPages})">${totalPages}</button>`;
+        }
+
+        html += `
+                    </span>
+                    <button class="pagination-btn" ${!paginationInfo.hasNext ? 'disabled' : ''}
+                            onclick="app.changePage('${tableName}', ${currentPage + 1})">
+                        Next →
+                    </button>
+                </div>
+            </div>
+        `;
+
+        return html;
+    }
+}
+
 class DateUtils {
     // Format date to dd/mm/yyyy
     static formatDate(dateString) {
