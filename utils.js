@@ -79,17 +79,10 @@ class DateUtils {
         return this.daysBetween(target, today);
     }
 
-    // Calculate quarter dates properly
+    // Calculate quarter dates properly - Each quarter is 3 months
     static calculateQuarterDates(startDate, endDate) {
         const start = new Date(startDate);
         const end = new Date(endDate);
-
-        // Calculate the total number of days in the fiscal year
-        const totalDays = this.daysBetween(start, end) + 1;
-
-        // Calculate days per quarter (approximately)
-        const daysPerQuarter = Math.floor(totalDays / 4);
-        const extraDays = totalDays % 4;
 
         const quarters = [];
         let currentStart = new Date(start);
@@ -97,20 +90,16 @@ class DateUtils {
         for (let i = 0; i < 4; i++) {
             const qStart = new Date(currentStart);
 
-            // Add days for this quarter
-            let days = daysPerQuarter;
-            // Distribute extra days to the last quarters
-            if (i >= (4 - extraDays)) {
-                days += 1;
-            }
-
-            // For last quarter, use the end date directly
+            // For the last quarter, use the end date directly
             let qEnd;
             if (i === 3) {
                 qEnd = new Date(end);
             } else {
+                // Add 3 months for each quarter
                 qEnd = new Date(qStart);
-                qEnd.setDate(qEnd.getDate() + days - 1);
+                qEnd.setMonth(qEnd.getMonth() + 3);
+                // Go back one day to get the last day of the quarter
+                qEnd.setDate(qEnd.getDate() - 1);
             }
 
             quarters.push({
@@ -119,7 +108,7 @@ class DateUtils {
                 endDate: this.toISODateString(qEnd)
             });
 
-            // Set start for next quarter
+            // Set start for next quarter (day after the end of current quarter)
             currentStart = new Date(qEnd);
             currentStart.setDate(currentStart.getDate() + 1);
         }

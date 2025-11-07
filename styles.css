@@ -2012,6 +2012,19 @@ body {
     cursor: pointer;
 }
 
+.radio-label {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.radio-label input[type="radio"] {
+    cursor: pointer;
+}
+
 /* ==========================================
    Tags Display
    ========================================== */

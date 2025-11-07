@@ -811,22 +811,24 @@ class AppState {
     }
 
     showFiscalYearForm() {
+        const currentYear = new Date().getFullYear();
+
         const body = `
             <form id="fiscalyear-form">
                 <div class="form-group">
                     <label class="form-label">Fiscal Year *</label>
-                    <input type="text" class="form-input" id="fy-year" placeholder="e.g., 2024" required>
+                    <input type="text" class="form-input" id="fy-year" placeholder="e.g., 2024" value="${currentYear}" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Start Date *</label>
-                    <input type="date" class="form-input" id="fy-start" required>
+                    <input type="date" class="form-input" id="fy-start" value="${currentYear}-01-01" required>
                 </div>
                 <div class="form-group">
                     <label class="form-label">End Date *</label>
-                    <input type="date" class="form-input" id="fy-end" required>
+                    <input type="date" class="form-input" id="fy-end" value="${currentYear}-12-31" required>
                 </div>
                 <div class="alert alert-info">
-                    <strong>Note:</strong> Four quarters will be automatically created for this fiscal year.
+                    <strong>Note:</strong> Four quarters of 3 months each will be automatically created for this fiscal year.
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancel</button>
@@ -836,6 +838,15 @@ class AppState {
         `;
 
         this.showModal('Add Fiscal Year', body);
+
+        // Auto-update dates when year changes
+        document.getElementById('fy-year').addEventListener('input', (e) => {
+            const year = e.target.value;
+            if (year && year.length === 4 && !isNaN(year)) {
+                document.getElementById('fy-start').value = `${year}-01-01`;
+                document.getElementById('fy-end').value = `${year}-12-31`;
+            }
+        });
 
         document.getElementById('fiscalyear-form').addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -847,7 +858,7 @@ class AppState {
             // Create fiscal year
             const fyId = await this.db.add('fiscalYears', { year, startDate, endDate });
 
-            // Auto-create 4 quarters using proper calculation
+            // Auto-create 4 quarters of 3 months each
             const quarters = DateUtils.calculateQuarterDates(startDate, endDate);
 
             for (const quarter of quarters) {
@@ -858,6 +869,7 @@ class AppState {
             }
 
             this.closeModal();
+            NotificationUtil.show('Fiscal year created successfully', 'success');
             this.renderFiscalYears();
             this.updateReportFilters();
         });
@@ -1602,16 +1614,15 @@ class AppState {
                 }
 
                 await this.db.update('exceptions', data);
+                NotificationUtil.show('Exception updated successfully', 'success');
             } else {
                 const newId = await this.db.add('exceptions', data);
                 await this.db.logChange('exception', newId, 'create', { title: data.title, risk_rating: data.risk_rating });
+                NotificationUtil.show('Exception created successfully', 'success');
             }
 
             this.closeModal();
-            this.renderExceptions();
-            if (this.currentView === 'dashboard') {
-                this.renderDashboard();
-            }
+            await this.refreshAllViews();
         });
     }
 
@@ -1811,17 +1822,27 @@ class AppState {
         document.getElementById('close-exception-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
+            const closureDate = document.getElementById('closure-date').value;
+            const closureComments = document.getElementById('closure-comments').value;
+
             exception.status = 'closed';
-            exception.closure_date = document.getElementById('closure-date').value;
-            exception.closure_comments = document.getElementById('closure-comments').value;
+            exception.closure_date = closureDate;
+            exception.closure_comments = closureComments;
 
             await this.db.update('exceptions', exception);
 
+            // Log the change
+            await this.db.logChange('exception', exception.id, 'update', {
+                status: { from: 'open', to: 'closed' },
+                closure_date: closureDate,
+                closure_comments: closureComments.substring(0, 50) + '...'
+            });
+
             this.closeModal();
-            this.renderExceptions();
-            if (this.currentView === 'dashboard') {
-                this.renderDashboard();
-            }
+            NotificationUtil.show('Exception closed successfully', 'success');
+
+            // Refresh all views
+            await this.refreshAllViews();
         });
     }
 
@@ -1833,10 +1854,52 @@ class AppState {
     async deleteException(id) {
         if (confirm('Are you sure you want to delete this exception?')) {
             await this.db.delete('exceptions', id);
-            this.renderExceptions();
-            if (this.currentView === 'dashboard') {
-                this.renderDashboard();
-            }
+            await this.db.logChange('exception', id, 'delete', {});
+            NotificationUtil.show('Exception deleted successfully', 'success');
+            await this.refreshAllViews();
+        }
+    }
+
+    async refreshAllViews() {
+        // Refresh the current view based on what's active
+        switch(this.currentView) {
+            case 'dashboard':
+                await this.renderDashboard();
+                break;
+            case 'exceptions':
+                await this.renderExceptions();
+                break;
+            case 'reports':
+                await this.renderReports();
+                break;
+            case 'entities':
+                await this.renderEntities();
+                break;
+            case 'fiscalYears':
+                await this.renderFiscalYears();
+                break;
+            case 'report-detail':
+                // Re-render the current report detail if available
+                if (this.currentReportId) {
+                    await this.viewReport(this.currentReportId);
+                }
+                break;
+            case 'statistics-detail':
+                // Re-render the current statistics view if available
+                if (this.currentStatisticsView) {
+                    await this.showReportView(this.currentStatisticsView);
+                }
+                break;
+            case 'overaged-report':
+                await this.showOveragedExceptionsReport();
+                break;
+        }
+
+        // Always refresh dashboard metrics if they're visible
+        const dashboardView = document.getElementById('dashboard-view');
+        if (dashboardView && !dashboardView.classList.contains('view-section')) {
+            // Dashboard is visible, refresh it
+            await this.renderDashboard();
         }
     }
 
@@ -2040,6 +2103,9 @@ class AppState {
             await this.showOveragedExceptionsReport();
             return;
         }
+
+        // Store current statistics view for refresh purposes
+        this.currentStatisticsView = viewId;
 
         const container = document.getElementById('statistics-detail-content');
         const titleElement = document.getElementById('statistics-detail-title');
@@ -3156,10 +3222,31 @@ class AppState {
                 <div class="alert alert-info">
                     <strong>Warning:</strong> This will replace all existing data in the database. Make sure to export your current data first if you want to keep it.
                 </div>
+
                 <div class="form-group">
-                    <label class="form-label">Select JSON File *</label>
-                    <input type="file" class="form-input" id="import-file" accept=".json" required>
+                    <label class="form-label">Import Method</label>
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1rem;">
+                        <label class="radio-label">
+                            <input type="radio" name="import-method" value="file" id="import-method-file" checked>
+                            Upload File
+                        </label>
+                        <label class="radio-label">
+                            <input type="radio" name="import-method" value="paste" id="import-method-paste">
+                            Paste JSON
+                        </label>
+                    </div>
                 </div>
+
+                <div id="import-file-section" class="form-group">
+                    <label class="form-label">Select JSON File</label>
+                    <input type="file" class="form-input" id="import-file" accept=".json">
+                </div>
+
+                <div id="import-paste-section" class="form-group" style="display: none;">
+                    <label class="form-label">Paste JSON Data</label>
+                    <textarea class="form-textarea" id="import-json-text" rows="10" placeholder='Paste your JSON data here (e.g., {"entities": [...], "fiscalYears": [...], ...})'></textarea>
+                </div>
+
                 <div class="form-actions">
                     <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancel</button>
                     <button type="submit" class="btn btn-primary">Import</button>
@@ -3169,52 +3256,86 @@ class AppState {
 
         this.showModal('Import Database', body);
 
+        // Toggle between file upload and paste sections
+        const fileRadio = document.getElementById('import-method-file');
+        const pasteRadio = document.getElementById('import-method-paste');
+        const fileSection = document.getElementById('import-file-section');
+        const pasteSection = document.getElementById('import-paste-section');
+
+        fileRadio.addEventListener('change', () => {
+            fileSection.style.display = 'block';
+            pasteSection.style.display = 'none';
+        });
+
+        pasteRadio.addEventListener('change', () => {
+            fileSection.style.display = 'none';
+            pasteSection.style.display = 'block';
+        });
+
         document.getElementById('import-form').addEventListener('submit', async (e) => {
             e.preventDefault();
 
-            const fileInput = document.getElementById('import-file');
-            const file = fileInput.files[0];
-
-            if (!file) {
-                NotificationUtil.show('Please select a file', 'error');
-                return;
-            }
+            const importMethod = document.querySelector('input[name="import-method"]:checked').value;
+            let jsonString = null;
 
             try {
-                const reader = new FileReader();
-                reader.onload = async (event) => {
-                    const jsonString = event.target.result;
+                if (importMethod === 'file') {
+                    const fileInput = document.getElementById('import-file');
+                    const file = fileInput.files[0];
 
-                    // Reset database first
-                    await this.db.resetDatabase();
-
-                    // Reinitialize database
-                    await this.db.init();
-
-                    // Import data
-                    const success = await DataExporter.importAllData(this.db, jsonString);
-
-                    if (success) {
-                        this.closeModal();
-                        NotificationUtil.show('Database imported successfully!', 'success');
-
-                        // Refresh the current view
-                        setTimeout(() => {
-                            location.reload();
-                        }, 1000);
-                    } else {
-                        NotificationUtil.show('Failed to import database. Invalid format.', 'error');
+                    if (!file) {
+                        NotificationUtil.show('Please select a file', 'error');
+                        return;
                     }
-                };
 
-                reader.onerror = () => {
-                    NotificationUtil.show('Failed to read file', 'error');
-                };
+                    // Read file
+                    jsonString = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = (event) => resolve(event.target.result);
+                        reader.onerror = () => reject(new Error('Failed to read file'));
+                        reader.readAsText(file);
+                    });
+                } else {
+                    // Paste method
+                    jsonString = document.getElementById('import-json-text').value.trim();
 
-                reader.readAsText(file);
+                    if (!jsonString) {
+                        NotificationUtil.show('Please paste JSON data', 'error');
+                        return;
+                    }
+                }
+
+                // Validate JSON format
+                try {
+                    JSON.parse(jsonString);
+                } catch (parseError) {
+                    NotificationUtil.show('Invalid JSON format. Please check your data.', 'error');
+                    return;
+                }
+
+                // Reset database first
+                await this.db.resetDatabase();
+
+                // Reinitialize database
+                await this.db.init();
+
+                // Import data
+                const success = await DataExporter.importAllData(this.db, jsonString);
+
+                if (success) {
+                    this.closeModal();
+                    NotificationUtil.show('Database imported successfully!', 'success');
+
+                    // Refresh the current view
+                    setTimeout(() => {
+                        location.reload();
+                    }, 1000);
+                } else {
+                    NotificationUtil.show('Failed to import database. Invalid format.', 'error');
+                }
             } catch (error) {
                 console.error('Import error:', error);
-                NotificationUtil.show('Failed to import database', 'error');
+                NotificationUtil.show('Failed to import database: ' + error.message, 'error');
             }
         });
     }
