@@ -426,6 +426,16 @@ body {
     animation: pulse 2s ease-in-out infinite;
 }
 
+.status-not-started {
+    background-color: #f3f4f6;
+    color: #374151;
+}
+
+.status-in-progress {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
 .dept-rating-satisfactory {
     background-color: #d1fae5;
     color: #065f46;

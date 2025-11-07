@@ -79,6 +79,70 @@ class DateUtils {
         return this.daysBetween(target, today);
     }
 
+    // Check if a date is a weekend (Saturday or Sunday)
+    static isWeekend(date) {
+        const day = date.getDay();
+        return day === 0 || day === 6; // 0 = Sunday, 6 = Saturday
+    }
+
+    // Calculate business days between two dates (excluding weekends)
+    static businessDaysBetween(startDate, endDate) {
+        const start = typeof startDate === 'string' ? new Date(startDate) : new Date(startDate);
+        const end = typeof endDate === 'string' ? new Date(endDate) : new Date(endDate);
+
+        let count = 0;
+        const current = new Date(start);
+
+        while (current <= end) {
+            if (!this.isWeekend(current)) {
+                count++;
+            }
+            current.setDate(current.getDate() + 1);
+        }
+
+        return count;
+    }
+
+    // Add business days to a date (skipping weekends)
+    static addBusinessDays(startDate, businessDays) {
+        const start = typeof startDate === 'string' ? new Date(startDate) : new Date(startDate);
+        const result = new Date(start);
+
+        let daysAdded = 0;
+        while (daysAdded < businessDays) {
+            result.setDate(result.getDate() + 1);
+            if (!this.isWeekend(result)) {
+                daysAdded++;
+            }
+        }
+
+        return this.toISODateString(result);
+    }
+
+    // Get current quarter based on current date
+    static getCurrentQuarter(fiscalYears, quarters) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        for (const fy of fiscalYears) {
+            const fyQuarters = quarters.filter(q => q.fiscalYearId === fy.id);
+            for (const quarter of fyQuarters) {
+                const qStart = new Date(quarter.startDate);
+                const qEnd = new Date(quarter.endDate);
+                qEnd.setHours(23, 59, 59, 999);
+
+                if (today >= qStart && today <= qEnd) {
+                    return {
+                        quarter,
+                        fiscalYear: fy
+                    };
+                }
+            }
+        }
+
+        return null;
+    }
+
     // Calculate quarter dates properly - Each quarter is 3 months
     static calculateQuarterDates(startDate, endDate) {
         const start = new Date(startDate);

@@ -5,7 +5,7 @@
 class Database {
     constructor() {
         this.dbName = 'AuditExceptionDB';
-        this.version = 5;
+        this.version = 6;
         this.db = null;
     }
 
@@ -94,6 +94,18 @@ class Database {
                                 cursor.continue();
                             }
                         };
+                    }
+                }
+
+                // Version 6 upgrades - Audit Planning Module
+                if (event.oldVersion < 6) {
+                    // Audits Store
+                    if (!db.objectStoreNames.contains('audits')) {
+                        const auditStore = db.createObjectStore('audits', { keyPath: 'id', autoIncrement: true });
+                        auditStore.createIndex('entityId', 'entityId', { unique: false });
+                        auditStore.createIndex('quarterId', 'quarterId', { unique: false });
+                        auditStore.createIndex('status', 'status', { unique: false });
+                        auditStore.createIndex('auditor', 'auditor', { unique: false });
                     }
                 }
             };
@@ -368,6 +380,7 @@ class AppState {
         document.getElementById('import-report-btn').addEventListener('click', () => this.showImportReportForm());
         document.getElementById('add-entity-btn').addEventListener('click', () => this.showEntityForm());
         document.getElementById('add-fiscalyear-btn').addEventListener('click', () => this.showFiscalYearForm());
+        document.getElementById('add-audit-btn').addEventListener('click', () => this.showAuditForm());
 
         // Filters
         document.getElementById('exception-search').addEventListener('input', (e) => {
@@ -449,6 +462,9 @@ class AppState {
                 break;
             case 'fiscalyears':
                 this.renderFiscalYears();
+                break;
+            case 'audit-planning':
+                this.renderAuditPlanning();
                 break;
             case 'views':
                 // Reports view - no initial render needed
@@ -886,6 +902,404 @@ class AppState {
             await this.db.delete('fiscalYears', id);
             this.renderFiscalYears();
         }
+    }
+
+    // ==========================================
+    // Audit Planning Management
+    // ==========================================
+
+    async renderAuditPlanning() {
+        const audits = await this.db.getAll('audits');
+        const entities = await this.db.getAll('entities');
+        const quarters = await this.db.getAll('quarters');
+        const fiscalYears = await this.db.getAll('fiscalYears');
+        const tbody = document.getElementById('audits-table-body');
+
+        // Get current quarter info
+        const currentQuarterInfo = DateUtils.getCurrentQuarter(fiscalYears, quarters);
+        this.renderCurrentQuarterInfo(currentQuarterInfo, audits);
+
+        if (audits.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No audits planned yet. Click "Add Audit" to get started.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = audits.map(audit => {
+            const entity = entities.find(e => e.id === audit.entityId);
+            const quarter = quarters.find(q => q.id === audit.quarterId);
+            const fy = quarter ? fiscalYears.find(f => f.id === quarter.fiscalYearId) : null;
+
+            const statusColors = {
+                'not_started': 'status-not-started',
+                'started': 'status-in-progress',
+                'closed': 'status-closed'
+            };
+
+            const statusLabels = {
+                'not_started': 'Not Started',
+                'started': 'In Progress',
+                'closed': 'Closed'
+            };
+
+            return `
+                <tr>
+                    <td>${audit.title}</td>
+                    <td>${entity?.name || 'N/A'}</td>
+                    <td>${fy?.year || 'N/A'} ${quarter?.name || ''}</td>
+                    <td><span class="status-badge ${statusColors[audit.status]}">${statusLabels[audit.status]}</span></td>
+                    <td>${audit.auditor || '-'}</td>
+                    <td>${audit.start_date ? DateUtils.formatDate(audit.start_date) : '-'}</td>
+                    <td>${audit.end_date ? DateUtils.formatDate(audit.end_date) : '-'}</td>
+                    <td>
+                        <div class="action-btns">
+                            ${audit.status === 'not_started' ?
+                                `<button class="btn btn-sm btn-success" onclick="app.startAudit(${audit.id})">Start</button>` :
+                                ''
+                            }
+                            ${audit.status === 'started' ?
+                                `<button class="btn btn-sm btn-primary" onclick="app.closeAudit(${audit.id})">Close</button>` :
+                                ''
+                            }
+                            ${audit.status === 'closed' ?
+                                `<button class="btn btn-sm btn-secondary" onclick="app.viewAuditDetails(${audit.id})">View</button>` :
+                                ''
+                            }
+                            ${audit.status !== 'closed' ?
+                                `<button class="btn btn-sm btn-danger" onclick="app.deleteAudit(${audit.id})">Delete</button>` :
+                                ''
+                            }
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+    }
+
+    renderCurrentQuarterInfo(currentQuarterInfo, audits) {
+        const container = document.getElementById('current-quarter-info');
+
+        if (!currentQuarterInfo) {
+            container.innerHTML = '<div class="alert alert-info">No active fiscal quarter found for the current date.</div>';
+            return;
+        }
+
+        const { quarter, fiscalYear } = currentQuarterInfo;
+
+        // Calculate realization rate for current quarter
+        const quarterAudits = audits.filter(a => a.quarterId === quarter.id);
+        const closedAudits = quarterAudits.filter(a => a.status === 'closed');
+        const inProgressAudits = quarterAudits.filter(a => a.status === 'started');
+
+        const realizationRate = quarterAudits.length > 0
+            ? Math.round((closedAudits.length / quarterAudits.length) * 100)
+            : 0;
+
+        container.innerHTML = `
+            <div class="stat-card">
+                <div class="stat-icon">📅</div>
+                <div class="stat-info">
+                    <div class="stat-label">Current Quarter</div>
+                    <div class="stat-value">${fiscalYear.year} ${quarter.name}</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">📊</div>
+                <div class="stat-info">
+                    <div class="stat-label">Realization Rate</div>
+                    <div class="stat-value">${realizationRate}%</div>
+                    <div class="stat-subtitle">${closedAudits.length} of ${quarterAudits.length} completed</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">⏳</div>
+                <div class="stat-info">
+                    <div class="stat-label">In Progress</div>
+                    <div class="stat-value">${inProgressAudits.length}</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon">✅</div>
+                <div class="stat-info">
+                    <div class="stat-label">Completed</div>
+                    <div class="stat-value">${closedAudits.length}</div>
+                </div>
+            </div>
+        `;
+    }
+
+    async showAuditForm(audit = null) {
+        const entities = await this.db.getAll('entities');
+        const quarters = await this.db.getAll('quarters');
+        const fiscalYears = await this.db.getAll('fiscalYears');
+
+        const title = audit ? 'Edit Audit' : 'Add Audit';
+        const body = `
+            <form id="audit-form">
+                <div class="form-group">
+                    <label class="form-label">Title *</label>
+                    <input type="text" class="form-input" id="audit-title" value="${audit?.title || ''}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Entity *</label>
+                    <select class="form-select" id="audit-entity" required>
+                        <option value="">Select Entity</option>
+                        ${entities.map(e => `
+                            <option value="${e.id}" ${audit?.entityId === e.id ? 'selected' : ''}>
+                                ${e.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Quarter *</label>
+                    <select class="form-select" id="audit-quarter" required>
+                        <option value="">Select Quarter</option>
+                        ${quarters.map(q => {
+                            const fy = fiscalYears.find(f => f.id === q.fiscalYearId);
+                            return `
+                                <option value="${q.id}" ${audit?.quarterId === q.id ? 'selected' : ''}>
+                                    ${fy?.year} ${q.name}
+                                </option>
+                            `;
+                        }).join('')}
+                    </select>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save</button>
+                </div>
+            </form>
+        `;
+
+        this.showModal(title, body);
+
+        document.getElementById('audit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const data = {
+                title: document.getElementById('audit-title').value,
+                entityId: parseInt(document.getElementById('audit-entity').value),
+                quarterId: parseInt(document.getElementById('audit-quarter').value),
+                status: audit?.status || 'not_started',
+                auditor: audit?.auditor || null,
+                start_date: audit?.start_date || null,
+                end_date: audit?.end_date || null,
+                duration_days: audit?.duration_days || null,
+                audit_period_start: audit?.audit_period_start || null,
+                audit_period_end: audit?.audit_period_end || null,
+                reportId: audit?.reportId || null,
+                created_date: audit?.created_date || new Date().toISOString().split('T')[0]
+            };
+
+            if (audit) {
+                data.id = audit.id;
+                await this.db.update('audits', data);
+                NotificationUtil.show('Audit updated successfully', 'success');
+            } else {
+                await this.db.add('audits', data);
+                NotificationUtil.show('Audit created successfully', 'success');
+            }
+
+            this.closeModal();
+            this.renderAuditPlanning();
+        });
+    }
+
+    async startAudit(id) {
+        const audit = await this.db.getById('audits', id);
+
+        const body = `
+            <form id="start-audit-form">
+                <div class="alert alert-info">
+                    Starting audit: <strong>${audit.title}</strong>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Auditor *</label>
+                    <input type="text" class="form-input" id="auditor-name" required placeholder="Enter auditor's name">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Start Date *</label>
+                    <input type="date" class="form-input" id="audit-start-date" value="${new Date().toISOString().split('T')[0]}" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Duration (Business Days) *</label>
+                    <input type="number" class="form-input" id="audit-duration" value="10" min="1" required>
+                    <small class="form-help">Weekends are automatically excluded</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Audit Period Start *</label>
+                    <input type="date" class="form-input" id="audit-period-start" required>
+                    <small class="form-help">Start of the period covered by this audit</small>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Audit Period End *</label>
+                    <input type="date" class="form-input" id="audit-period-end" required>
+                    <small class="form-help">End of the period covered by this audit</small>
+                </div>
+                <div id="calculated-end-date" style="margin-top: 1rem; padding: 1rem; background: #f3f4f6; border-radius: 0.5rem;"></div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-success">Start Audit</button>
+                </div>
+            </form>
+        `;
+
+        this.showModal('Start Audit', body);
+
+        // Calculate end date when start date or duration changes
+        const updateEndDate = () => {
+            const startDate = document.getElementById('audit-start-date').value;
+            const duration = parseInt(document.getElementById('audit-duration').value);
+
+            if (startDate && duration) {
+                const endDate = DateUtils.addBusinessDays(startDate, duration - 1);
+                document.getElementById('calculated-end-date').innerHTML = `
+                    <strong>Calculated End Date:</strong> ${DateUtils.formatDate(endDate)}
+                    <br><small>Based on ${duration} business days (excluding weekends)</small>
+                `;
+            }
+        };
+
+        document.getElementById('audit-start-date').addEventListener('change', updateEndDate);
+        document.getElementById('audit-duration').addEventListener('input', updateEndDate);
+
+        // Initial calculation
+        updateEndDate();
+
+        document.getElementById('start-audit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const startDate = document.getElementById('audit-start-date').value;
+            const duration = parseInt(document.getElementById('audit-duration').value);
+            const endDate = DateUtils.addBusinessDays(startDate, duration - 1);
+
+            audit.status = 'started';
+            audit.auditor = document.getElementById('auditor-name').value;
+            audit.start_date = startDate;
+            audit.end_date = endDate;
+            audit.duration_days = duration;
+            audit.audit_period_start = document.getElementById('audit-period-start').value;
+            audit.audit_period_end = document.getElementById('audit-period-end').value;
+
+            await this.db.update('audits', audit);
+
+            this.closeModal();
+            NotificationUtil.show('Audit started successfully', 'success');
+            this.renderAuditPlanning();
+        });
+    }
+
+    async closeAudit(id) {
+        const audit = await this.db.getById('audits', id);
+        const reports = await this.db.getAll('reports');
+
+        // Get reports for the same entity
+        const entityReports = reports.filter(r => r.entityId === audit.entityId);
+
+        const body = `
+            <form id="close-audit-form">
+                <div class="alert alert-info">
+                    Closing audit: <strong>${audit.title}</strong>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Associate Report *</label>
+                    <select class="form-select" id="audit-report" required>
+                        <option value="">Select Report</option>
+                        ${entityReports.map(r => `
+                            <option value="${r.id}">${r.name} (${r.date})</option>
+                        `).join('')}
+                    </select>
+                    <small class="form-help">You must associate this audit with a report to close it</small>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Close Audit</button>
+                </div>
+            </form>
+        `;
+
+        this.showModal('Close Audit', body);
+
+        document.getElementById('close-audit-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const reportId = parseInt(document.getElementById('audit-report').value);
+
+            if (!reportId) {
+                NotificationUtil.show('Please select a report', 'error');
+                return;
+            }
+
+            audit.status = 'closed';
+            audit.reportId = reportId;
+
+            await this.db.update('audits', audit);
+
+            this.closeModal();
+            NotificationUtil.show('Audit closed successfully', 'success');
+            this.renderAuditPlanning();
+        });
+    }
+
+    async deleteAudit(id) {
+        if (confirm('Are you sure you want to delete this audit?')) {
+            await this.db.delete('audits', id);
+            NotificationUtil.show('Audit deleted successfully', 'success');
+            this.renderAuditPlanning();
+        }
+    }
+
+    async viewAuditDetails(id) {
+        const audit = await this.db.getById('audits', id);
+        const entity = await this.db.getById('entities', audit.entityId);
+        const quarter = await this.db.getById('quarters', audit.quarterId);
+        const fiscalYears = await this.db.getAll('fiscalYears');
+        const fy = fiscalYears.find(f => f.id === quarter.fiscalYearId);
+        const report = audit.reportId ? await this.db.getById('reports', audit.reportId) : null;
+
+        const body = `
+            <div class="audit-details">
+                <div class="form-group">
+                    <label class="form-label">Title</label>
+                    <p>${audit.title}</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Entity</label>
+                    <p>${entity.name}</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Quarter</label>
+                    <p>${fy.year} ${quarter.name}</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Status</label>
+                    <p><span class="status-badge status-closed">Closed</span></p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Auditor</label>
+                    <p>${audit.auditor}</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Audit Dates</label>
+                    <p>${DateUtils.formatDate(audit.start_date)} to ${DateUtils.formatDate(audit.end_date)} (${audit.duration_days} business days)</p>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Audit Period Covered</label>
+                    <p>${DateUtils.formatDate(audit.audit_period_start)} to ${DateUtils.formatDate(audit.audit_period_end)}</p>
+                </div>
+                ${report ? `
+                <div class="form-group">
+                    <label class="form-label">Associated Report</label>
+                    <p><a href="#" onclick="app.viewReportDetail(${report.id}); app.closeModal(); return false;">${report.name}</a></p>
+                </div>
+                ` : ''}
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" onclick="app.closeModal()">Close</button>
+                </div>
+            </div>
+        `;
+
+        this.showModal('Audit Details', body);
     }
 
     // ==========================================

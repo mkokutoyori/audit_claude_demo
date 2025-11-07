@@ -41,6 +41,10 @@
                     <span class="nav-icon">👁️</span>
                     <span data-i18n="nav.views">Reports & Views</span>
                 </a>
+                <a href="#" class="nav-item" data-view="audit-planning">
+                    <span class="nav-icon">📋</span>
+                    <span>Audit Planning</span>
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <div style="padding: 0 1rem 0.5rem 1rem;">
@@ -246,6 +250,43 @@
                 </div>
 
                 <div class="fiscal-years-container" id="fiscal-years-container">
+                </div>
+            </section>
+
+            <!-- Audit Planning View -->
+            <section id="audit-planning-view" class="view-section">
+                <div class="view-header">
+                    <h2>Audit Planning</h2>
+                    <p class="subtitle">Plan and track audit engagements</p>
+                    <button class="btn btn-primary" id="add-audit-btn">
+                        <span>+ Add Audit</span>
+                    </button>
+                </div>
+
+                <!-- Current Quarter Info -->
+                <div id="current-quarter-info" class="stats-grid" style="margin-bottom: 2rem;"></div>
+
+                <!-- Audits Table -->
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Entity</th>
+                                <th>Quarter</th>
+                                <th>Status</th>
+                                <th>Auditor</th>
+                                <th>Start Date</th>
+                                <th>End Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="audits-table-body">
+                            <tr>
+                                <td colspan="8" class="loading-state">Loading audits...</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </section>
 
